@@ -1,0 +1,86 @@
+Q4 FY2025 EARNINGS CALL TRANSCRIPT
+=====================================
+Company: [PLACEHOLDER - dynamically set per ticker]
+Date: February 2025
+Participants: CEO, CFO, Analyst Q&A Panel
+
+[OPERATOR]
+Good morning and welcome to the Q4 FY2025 earnings conference call.
+At this time all participants are in a listen-only mode.
+After prepared remarks, we will open the call for your questions.
+
+[CEO REMARKS]
+Good morning, everyone. Thank you for joining us today.
+
+I want to begin by saying that Q4 was a defining quarter for our company.
+Despite a complex macroeconomic environment marked by elevated interest rates
+and global supply chain normalization, we delivered results that exceeded our
+own internal guidance on three of four key metrics.
+
+Revenue grew 18.4% year-over-year, driven by strong demand in our enterprise
+segment, which now contributes 63% of total revenue. Our cloud and digital
+services division crossed a significant milestone, achieving annualized
+recurring revenue of $4.2 billion, ahead of schedule.
+
+On margins: gross margin expanded 120 basis points to 71.3%. Operating margin
+came in at 28.6%, reflecting disciplined cost management even as we continue to
+invest aggressively in R&D and talent.
+
+We added 3,200 net new employees this quarter, predominantly in engineering and
+AI-related functions. Our headcount in AI-focused roles now stands at over
+12,000 globally — a 40% increase year-on-year.
+
+Looking at geographic performance: our India business delivered exceptional
+results, with 31% revenue growth year-over-year. Asia-Pacific more broadly was
+our fastest-growing region. North America grew 14%, and Europe, while impacted
+by currency headwinds, held steady at 9% constant currency growth.
+
+I want to spend a moment on our AI strategy. We believe we are entering what I
+describe as the "second inflection point" in enterprise AI adoption. The first
+wave was about exploration — proof-of-concepts, sandboxes, small pilots. We are
+now seeing large-scale, production-grade deployments from our Tier-1 clients.
+
+Our proprietary AI platform, internally called Aurora, processed over 2.8
+trillion inference calls this quarter alone — a 220% year-on-year increase.
+
+Sentiment is genuinely positive, and I believe we are in a strong position
+heading into FY2026. Our pipeline is the healthiest it has ever been.
+
+[CFO REMARKS]
+Thank you. I will now walk through the financials in more detail.
+
+Total revenue for Q4: $6.84 billion, up 18.4% year-over-year and 4.2%
+sequentially, ahead of consensus by approximately $180 million.
+
+Free cash flow came in at $1.9 billion, with a free cash flow margin of 27.8%.
+We ended the quarter with $14.3 billion in cash and short-term investments on
+the balance sheet.
+
+Returning capital to shareholders: we repurchased $800 million in shares this
+quarter and paid dividends of $220 million, for a total capital return of over
+$1 billion in Q4 alone.
+
+EPS (non-GAAP diluted): $2.14, up 22% year-over-year, beating consensus by $0.11.
+
+[ANALYST Q&A - SELECTED EXCERPTS]
+
+Q: Can you elaborate on the competitive dynamics in the AI infrastructure space?
+
+CEO: Absolutely. What we are seeing is a consolidation of enterprise spend
+around a small number of trusted platform providers. The "build vs. buy"
+conversation is shifting decisively toward buy — clients want integrated,
+auditable, compliant AI systems. We believe our Aurora platform is the most
+enterprise-ready option in the market today. The tone from customers is one of
+urgency, not caution. They don't want to be left behind.
+
+Q: Regarding guidance for Q1 FY2026?
+
+CFO: We are guiding Q1 revenue in the range of $7.1 to $7.25 billion, implying
+approximately 16 to 18 percent growth year-over-year. Non-GAAP EPS guidance:
+$2.20 to $2.26. We feel good about this range and believe it is appropriately
+calibrated given the macro backdrop.
+
+[END OF TRANSCRIPT]
+NOTE: This is a sample/mock transcript for demonstration purposes.
+The emotion analysis engine will process the sentiment, tone, and
+key phrases from real earnings call transcripts when integrated.

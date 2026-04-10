@@ -8,7 +8,6 @@ Calculates accuracy, updates status to 'COMPLETED', and adds learning notes if n
 
 import sys
 import os
-import sqlite3
 import json
 from datetime import datetime
 import yfinance as yf
@@ -25,21 +24,10 @@ def run_auditor():
     """
     print(f"[{datetime.now().isoformat()}] Starting Automated Auditor...")
     
-    # 1. Fetch pending predictions from Supabase
-    if not database.supabase:
-        print("ERROR: Supabase not configured. Skipping auditor run.")
-        return
-
+    # 1. Fetch pending predictions from local SQLite
     today = datetime.now().strftime("%Y-%m-%d")
     try:
-        res = (
-            database.supabase.table("predictions")
-            .select("*")
-            .eq("status", "PENDING")
-            .lte("target_date", today)
-            .execute()
-        )
-        pending = res.data if res.data else []
+        pending = database.get_pending_predictions_for_audit(today)
     except Exception as e:
         print(f"Error fetching pending predictions: {e}")
         return
@@ -120,7 +108,7 @@ def run_auditor():
             if learning_note:
                 payload["learning_notes"] = learning_note
 
-            database.supabase.table("predictions").update(payload).eq("id", prediction_id).execute()
+            database.update_prediction(prediction_id, payload)
             print(f"  Result: {result_str}. Updated.")
 
         except Exception as e:

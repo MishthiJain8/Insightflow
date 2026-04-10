@@ -53,6 +53,7 @@ python -m venv venv
 source venv/bin/scripts/activate  # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
+uvicorn main:app --reload
 ```
 
 ### 3. Frontend Setup

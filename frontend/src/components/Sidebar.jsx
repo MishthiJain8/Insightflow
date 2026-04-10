@@ -6,7 +6,6 @@ import {
     ChevronRight, Eye
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
 const navItems = [
@@ -117,13 +116,18 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
     }
 
     const fetchUnreadCount = async () => {
-        if (!user) return
-        const { count, error } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('is_read', false)
-        if (!error) setUnreadNotifCount(count || 0)
+        if (!user || !token) return
+        try {
+            const res = await fetch('http://localhost:8000/api/notifications/unread-count', {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setUnreadNotifCount(data.count || 0)
+            }
+        } catch (e) {
+            console.error('Failed to fetch unread count', e)
+        }
     }
 
     useEffect(() => {
@@ -131,28 +135,14 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
         fetchAlerts()
         fetchUnreadCount()
 
-        // ── Realtime listener for the Sidebar red dot ──
-        const channel = supabase
-            .channel('sidebar-notifs')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-            }, () => {
-                // Refresh count on any change (read, delete, insert)
-                fetchUnreadCount()
-            })
-            .subscribe()
-
+        // ── Polling for the Sidebar (replaces Realtime) ──
         const iv = setInterval(() => {
             fetchAlerts()
             fetchUnreadCount()
-        }, 300000) // refresh every 5m
+        }, 120000) // refresh every 2m for faster feedback
 
         return () => {
             clearInterval(iv)
-            supabase.removeChannel(channel)
         }
     }, [user, token])
 
@@ -172,15 +162,14 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
     }
 
     const markAllNotificationsAsRead = async () => {
-        if (!user) return
+        if (!user || !token) return
         try {
-            const { error } = await supabase
-                .from('notifications')
-                .update({ is_read: true })
-                .eq('user_id', user.id)
-                .eq('is_read', false)
+            const res = await fetch('http://localhost:8000/api/notifications/mark-read', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            })
 
-            if (!error) {
+            if (res.ok) {
                 setUnreadNotifCount(0)
             }
         } catch (e) {

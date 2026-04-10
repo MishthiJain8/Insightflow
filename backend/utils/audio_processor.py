@@ -12,7 +12,7 @@ logger = logging.getLogger("audio_processor")
 
 def analyze_and_save_audio(ticker: str, audio_url: str = None) -> dict:
     """
-    Analyzes audio from a URL (or placeholder) and saves the results to Supabase.
+    Analyzes audio from a URL (or placeholder) and saves the results to the local database.
     
     Args:
         ticker: The stock ticker to associate with the analysis.

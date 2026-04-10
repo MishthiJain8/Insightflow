@@ -191,63 +191,48 @@ class LoginRequest(BaseModel):
 
 @app.post("/api/auth/register")
 def register_user(req: RegisterRequest):
-    """Hash password and create user in Supabase 'members' table."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-    
+    """Hash password and create user in local SQLite 'members' table."""
     # Hash password
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(req.password.encode("utf-8"), salt).decode("utf-8")
     
     try:
-        res = db.supabase.table("members").insert({
-            "email": req.email,
-            "password_hash": hashed
-        }).execute()
-        
-        user_id = res.data[0]["id"]
+        user_id = db.create_user(req.email, hashed)
         
         # Give them a JWT immediately
         token = jwt.encode(
-            {"sub": user_id, "email": req.email, "exp": datetime.utcnow() + timedelta(days=7)},
+            {"sub": str(user_id), "email": req.email, "exp": datetime.utcnow() + timedelta(days=7)},
             get_jwt_secret(), 
             algorithm="HS256"
         )
-        return {"token": token, "user": {"id": user_id, "email": req.email}}
+        return {"token": token, "user": {"id": str(user_id), "email": req.email}}
     except Exception as e:
-        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+        if "unique" in str(e).lower():
             raise HTTPException(status_code=400, detail="Email already registered.")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.post("/api/auth/login")
 def login_user(req: LoginRequest):
     """Verify password and return JWT."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-        
-    res = db.supabase.table("members").select("id, email, password_hash").eq("email", req.email).execute()
-    if not res.data:
+    user = db.get_user_by_email(req.email)
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
         
-    user = res.data[0]
     if not bcrypt.checkpw(req.password.encode("utf-8"), user["password_hash"].encode("utf-8")):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
         
     token = jwt.encode(
-        {"sub": user["id"], "email": user["email"], "exp": datetime.utcnow() + timedelta(days=7)},
+        {"sub": str(user["id"]), "email": user["email"], "exp": datetime.utcnow() + timedelta(days=7)},
         get_jwt_secret(), 
         algorithm="HS256"
     )
-    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+    return {"token": token, "user": {"id": str(user["id"]), "email": user["email"]}}
 
 @app.post("/api/auth/forgot-password")
 def forgot_password(req: OtpRequest):
     """Send a recovery OTP to the user's email."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-        
-    res = db.supabase.table("members").select("email").eq("email", req.email).execute()
-    if not res.data:
+    user = db.get_user_by_email(req.email)
+    if not user:
         # Don't reveal if email exists, but we also won't send an OTP
         return {"status": "success", "message": "If that email exists, an OTP has been sent."}
         
@@ -270,9 +255,6 @@ class ResetPasswordRequest(BaseModel):
 @app.post("/api/auth/reset-password")
 def reset_password(req: ResetPasswordRequest):
     """Verify OTP and reset password for a non-authenticated user."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-        
     # Verify OTP
     record = db.otp_get(req.email)
     if not record or record["otp"] != req.otp.strip():
@@ -283,7 +265,7 @@ def reset_password(req: ResetPasswordRequest):
     hashed = bcrypt.hashpw(req.new_password.encode("utf-8"), salt).decode("utf-8")
     
     try:
-        db.supabase.table("members").update({"password_hash": hashed}).eq("email", req.email).execute()
+        db.update_password_by_email(req.email, hashed)
         db.otp_delete(req.email)
         return {"status": "success", "message": "Password reset successfully."}
     except Exception as e:
@@ -298,20 +280,15 @@ class ProfileUpdate(BaseModel):
 @app.get("/api/profile")
 def get_profile(user_id: str = Depends(get_current_user)):
     """Fetch the logged-in user's profile."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-    res = db.supabase.table("profiles").select("*").eq("user_id", user_id).execute()
-    if not res.data:
+    profile = db.get_profile(user_id)
+    if not profile:
         # Return 404 so frontend knows profile is incomplete
         raise HTTPException(status_code=404, detail="Profile not found")
-    return res.data[0]
+    return profile
 
 @app.post("/api/profile")
 def update_profile(req: ProfileUpdate, user_id: str = Depends(get_current_user)):
     """Upsert the user's profile."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-    
     payload = {
         "user_id": user_id,
         "full_name": req.full_name,
@@ -319,8 +296,8 @@ def update_profile(req: ProfileUpdate, user_id: str = Depends(get_current_user))
         "updated_at": datetime.utcnow().isoformat()
     }
     try:
-        res = db.supabase.table("profiles").upsert(payload, on_conflict="user_id").execute()
-        return res.data[0] if res.data else {"status": "success"}
+        db.upsert_profile(payload)
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -333,14 +310,12 @@ class PasswordUpdateRequest(BaseModel):
 @app.post("/api/auth/profile/password-otp")
 def send_password_reset_otp(user_id: str = Depends(get_current_user)):
     """Send an OTP to the logged-in user's email for password change."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-        
-    res = db.supabase.table("members").select("email").eq("id", user_id).execute()
-    if not res.data:
+    # We need email from user_id
+    user = db.get_user_by_id(user_id)
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    email = res.data[0]["email"]
+    email = user["email"]
     otp = str(random.randint(100000, 999999))
     db.otp_store(email, otp, ttl_seconds=OTP_TTL_SECONDS)
     
@@ -355,14 +330,11 @@ def send_password_reset_otp(user_id: str = Depends(get_current_user)):
 @app.post("/api/auth/profile/update-password")
 def update_password(req: PasswordUpdateRequest, user_id: str = Depends(get_current_user)):
     """Verify OTP and update the user's password hash."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured.")
-        
-    res = db.supabase.table("members").select("email").eq("id", user_id).execute()
-    if not res.data:
+    user = db.get_user_by_id(user_id)
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    email = res.data[0]["email"]
+    email = user["email"]
     
     # Verify OTP
     record = db.otp_get(email)
@@ -374,11 +346,40 @@ def update_password(req: PasswordUpdateRequest, user_id: str = Depends(get_curre
     hashed = bcrypt.hashpw(req.new_password.encode("utf-8"), salt).decode("utf-8")
     
     try:
-        db.supabase.table("members").update({"password_hash": hashed}).eq("id", user_id).execute()
+        db.update_password_by_id(user_id, hashed)
         db.otp_delete(email)
         return {"status": "success", "message": "Password updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+# ─── Notifications ────────────────────────────────────────────────────────────
+
+@app.get("/api/notifications")
+def get_notifications(user_id: str = Depends(get_current_user)):
+    """Fetch all notifications for the logged-in user."""
+    return db.get_notifications(user_id)
+
+@app.get("/api/notifications/unread-count")
+def get_unread_count(user_id: str = Depends(get_current_user)):
+    """Fetch only the count of unread notifications."""
+    count = db.get_unread_notification_count(user_id)
+    return {"count": count}
+
+@app.post("/api/notifications/mark-read")
+def mark_notifications_read(user_id: str = Depends(get_current_user)):
+    """Mark all unread notifications as read for the current user."""
+    db.mark_notifications_as_read(user_id)
+    return {"status": "success"}
+
+@app.delete("/api/notifications/{notif_id}")
+def delete_notification(notif_id: str, user_id: str = Depends(get_current_user)):
+    """Delete a specific notification."""
+    # Verify ownership or if it's a global notification
+    owner_id = db.get_notification_owner(notif_id)
+    if owner_id and str(owner_id) != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this notification")
+    db.delete_notification(notif_id)
+    return {"status": "success"}
 
 
 # ─── Startup ───────────────────────────────────────────────────────────────────
@@ -398,15 +399,9 @@ async def _holdings_scheduler():
     """Background loop that evaluates every user's open portfolio every 5 minutes."""
     while True:
         try:
-            if not db.supabase:
-                await asyncio.sleep(300)
-                continue
-            # fetch all user ids from supabase members table
-            res = db.supabase.table("members").select("id").execute()
-            for u in (res.data or []):
-                uid = u.get("id")
-                if not uid:
-                    continue
+            # fetch all user ids from local members table
+            uids = db.get_all_user_ids()
+            for uid in uids:
                 try:
                     evaluate_holdings(uid)
                 except Exception as e:
@@ -437,28 +432,14 @@ def health_check():
 
 # ─── Helper for AI alerts (used across multiple engines) ─────────────────────
 def push_ai_notification(user_id: str, message: str, ticker: str, type: str) -> int:
-    """Insert an AI-generated alert into Supabase and local DB using simple mode."""
+    """Insert an AI-generated alert into local SQLite DB."""
     simple = simplify_finance(message)
     notif_id = 0
-    # local store (SQLite) to keep consistency with existing functions
+    # local store (SQLite)
     try:
-        notif_id = db.add_notification(type=type, message=simple, ticker=ticker)
-    except Exception:
-        pass
-    # supabase insert
-    if db.supabase and user_id:
-        try:
-            res = db.supabase.table("notifications").insert({
-                "user_id": user_id,
-                "type": type,
-                "message": simple,
-                "ticker": ticker,
-                "is_read": False
-            }).execute()
-            if res.data:
-                notif_id = res.data[0]["id"]
-        except Exception as e:
-            print(f"push_ai_notification supabase error: {e}")
+        notif_id = db.add_notification(type=type, message=simple, ticker=ticker, user_id=int(user_id))
+    except Exception as e:
+        print(f"push_ai_notification error: {e}")
     return notif_id
 
 
@@ -508,14 +489,13 @@ def check_for_market_peak(ticker: str, current_price: float, rsi: float, current
 
 def evaluate_holdings(user_id: str):
     """Compare each open holding to live price + sentiment/tech and push advice."""
-    if not db.supabase:
-        return
+def evaluate_holdings(user_id: int):
+    """Compare each open holding to live price + sentiment/tech and push advice."""
     try:
-        res = db.supabase.table("portfolio").select("*").eq("user_id", user_id).eq("status", "OPEN").execute()
+        holdings = db.get_portfolio_holdings(user_id)
     except Exception as e:
-        print(f"evaluate_holdings: supabase error for user {user_id}: {e}")
+        print(f"evaluate_holdings: database error for user {user_id}: {e}")
         return
-    holdings = res.data or []
     for h in holdings:
         ticker = h.get("ticker")
         if not ticker:
@@ -536,7 +516,7 @@ def evaluate_holdings(user_id: str):
         
         # full analysis via predict helper
         try:
-            pred = predict(ticker, BackgroundTasks(), user_id=user_id)
+            pred = predict(ticker, BackgroundTasks(), user_id=user_id, save_to_db=False)
             sentiment_label = pred.get("sentiment", {}).get("label", "Neutral")
             sentiment_score = pred.get("sentiment", {}).get("score", 0.0)
             rsi = pred.get("features", {}).get("rsi14", 50.0)
@@ -1509,7 +1489,7 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
         sentiment = {"score": 0.0, "label": "Neutral", "per_headline": []}
 
     # ── 3. Audio Intelligence ──────────────────────────────────────────────────
-    # Check if we have a recent (last 30 days) audio analysis in Supabase
+    # Check if we have a recent (last 30 days) audio analysis in the local database
     cached_audio = db.get_latest_audio_analysis(ticker_upper)
     recent_threshold = datetime.utcnow() - timedelta(days=30)
     
@@ -2331,11 +2311,7 @@ def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: 
     )
 
 
-    # ── Log to DB (non-blocking) ───────────────────────────────────────────────
-    try:
-        db.log_prediction(user_id, ticker, current_price, direction, probability, 0.0, horizon=horizon_days)
-    except Exception as e:
-        print(f"Log prediction error: {e}")
+    # Prediction already logged via predict() call above — no duplicate needed here.
     background_tasks.add_task(evaluate_model.run_evaluation)
 
     return {
@@ -2481,52 +2457,43 @@ class PortfolioSellRequest(BaseModel):
 
 @app.post("/api/portfolio/buy")
 def buy_portfolio_holding(req: PortfolioBuyRequest, user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-        
     payload = {
         "user_id": user_id,
         "ticker": req.ticker.upper().strip(),
         "quantity": req.quantity,
-        "buy_price": req.buy_price,  # Supabase column
+        "buy_price": req.buy_price,
         "sector": req.sector,
         "status": "OPEN",
         "buy_date": req.purchase_date or datetime.utcnow().isoformat()
     }
     try:
-        res = db.supabase.table("portfolio").insert(payload).execute()
-        return {"message": "Holding added successfully", "id": res.data[0]["id"] if res.data else None}
+        new_id = db.add_portfolio_holding(payload)
+        return {"message": "Holding added successfully", "id": new_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
 @app.post("/api/portfolio/sell/{item_id}")
 def sell_portfolio_holding(item_id: int, req: PortfolioSellRequest, user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-        
-    # First get the item to calculate PNL and check quantity
-    res = db.supabase.table("portfolio").select("*").eq("id", item_id).eq("user_id", user_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Active holding not found")
-        
-    item = res.data[0]
-    total_qty = float(item["quantity"])
-    sell_qty = float(req.quantity) if req.quantity is not None else total_qty
-    
-    if sell_qty > total_qty:
-        raise HTTPException(status_code=400, detail=f"Cannot sell more than owned ({total_qty} units)")
-    
-    realized_pnl = (req.sell_price - item["buy_price"]) * sell_qty
-    
     try:
+        # First get the item to calculate PNL and check quantity
+        item = db.get_portfolio_item(item_id, user_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Active holding not found")
+            
+        total_qty = float(item["quantity"])
+        sell_qty = float(req.quantity) if req.quantity is not None else total_qty
+        
+        if sell_qty > total_qty:
+            raise HTTPException(status_code=400, detail=f"Cannot sell more than owned ({total_qty} units)")
+        
+        realized_pnl = (req.sell_price - item["buy_price"]) * sell_qty
+        
         if sell_qty < total_qty:
             # Partial Sale: Update original holding with remaining quantity
-            db.supabase.table("portfolio").update({
-                "quantity": total_qty - sell_qty
-            }).eq("id", item_id).execute()
+            db.update_portfolio_holding(item_id, {"quantity": total_qty - sell_qty})
             
             # Create a new CLOSED record for the sold portion
-            db.supabase.table("portfolio").insert({
+            db.add_portfolio_holding({
                 "user_id": user_id,
                 "ticker": item["ticker"],
                 "quantity": sell_qty,
@@ -2537,37 +2504,37 @@ def sell_portfolio_holding(item_id: int, req: PortfolioSellRequest, user_id: str
                 "sell_price": req.sell_price,
                 "sell_date": datetime.utcnow().isoformat(),
                 "realized_pnl": realized_pnl
-            }).execute()
+            })
         else:
-            # Full Sale: Close the holding as before
-            db.supabase.table("portfolio").update({
+            # Full Sale: Close the holding
+            db.update_portfolio_holding(item_id, {
                 "status": "CLOSED",
                 "sell_price": req.sell_price,
                 "sell_date": datetime.utcnow().isoformat(),
                 "realized_pnl": realized_pnl
-            }).eq("id", item_id).eq("user_id", user_id).execute()
+            })
             
         return {"message": "Holding sold successfully", "partial": sell_qty < total_qty}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database update failed: {str(e)}")
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-        
     try:
-        # Fetch all holdings for this user
-        res = db.supabase.table("portfolio").select("*").eq("user_id", user_id).order("buy_date", desc=True).execute()
+        # Fetch all holdings for this user from MongoDB
+        holdings = db.get_portfolio_holdings(user_id) 
+        # Get all holdings including CLOSED for trade history
+        all_holdings = db.get_all_portfolio(user_id)
     except Exception as e:
         print(f"Portfolio summary error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
         
-    holdings = res.data if res.data else []
     active_holdings = []
     trade_history = []
     
-    for h in holdings:
+    for h in all_holdings:
         status = h.get("status", "OPEN")
         if status == "CLOSED":
             trade_history.append(h)
@@ -2646,18 +2613,14 @@ def get_portfolio_alerts(background_tasks: BackgroundTasks, user_id: str = Depen
       - HOLD:      Technicals and Sentiment are in direct conflict
     Also attaches a 'precision_badge' (0-100) per ticker from historical model accuracy.
     """
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-
     try:
-        portfolio_res = db.supabase.table("portfolio").select("ticker,buy_price,quantity").eq("user_id", user_id).eq("status", "OPEN").execute()
+        holdings = db.get_portfolio_holdings(user_id)
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"Portfolio alerts error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    holdings = portfolio_res.data or []
     # Build a cost basis map per ticker {ticker: avg_buy_price}
     ticker_cost_map: dict[str, float] = {}
     for h in holdings:
@@ -2790,86 +2753,30 @@ def get_portfolio_alerts(background_tasks: BackgroundTasks, user_id: str = Depen
 
     return alerts
 
-@app.get("/api/notifications")
-def get_all_notifications(user_id: str = Depends(get_current_user)):
-    """Fetch all saved persistent alerts for user."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-    try:
-        res = db.supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(50).execute()
-        return res.data if res.data else []
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-class MarkReadRequest(BaseModel):
-    ids: list[int]
-
-@app.put("/api/notifications/read")
-def mark_notifications_read(req: MarkReadRequest, user_id: str = Depends(get_current_user)):
-    """Mark specific notifications as read."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-    if not req.ids:
-        return {"status": "success"}
-    try:
-        db.supabase.table("notifications").update({"is_read": True}).in_("id", req.ids).eq("user_id", user_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/notifications/{notif_id}")
-def delete_single_notification(notif_id: int, user_id: str = Depends(get_current_user)):
-    """Delete a single alert by ID."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-    try:
-        db.supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
-        return {"message": "Notification deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/notifications")
-def delete_all_notifications(user_id: str = Depends(get_current_user)):
-    """Clear the entire notifications table for user."""
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-    try:
-        db.supabase.table("notifications").delete().eq("user_id", user_id).execute()
-        return {"message": "All notifications cleared"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 # ─── Watchlist ────────────────────────────────────────────────────────────────
 
 class WatchlistRequest(BaseModel):
     ticker: str
 
 @app.get("/api/watchlist")
-def get_watchlist(user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
+def get_watchlist_items(user_id: str = Depends(get_current_user)):
     try:
-        res = db.supabase.table("watchlist").select("ticker").eq("user_id", user_id).execute()
-        return [r["ticker"] for r in (res.data or [])]
+        return db.get_watchlist(user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/watchlist")
-def add_watchlist(req: WatchlistRequest, user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
+def add_watchlist_item(req: WatchlistRequest, user_id: str = Depends(get_current_user)):
     try:
-        db.supabase.table("watchlist").insert({"user_id": user_id, "ticker": req.ticker}).execute()
+        db.add_to_watchlist(user_id, req.ticker)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/watchlist/{ticker}")
-def remove_watchlist(ticker: str, user_id: str = Depends(get_current_user)):
-    if not db.supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
+def remove_watchlist_item(ticker: str, user_id: str = Depends(get_current_user)):
     try:
-        db.supabase.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+        db.remove_from_watchlist(user_id, ticker)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2917,14 +2824,13 @@ def trigger_weekly_report(user_id: str = Depends(get_current_user)):
     Returns the full report payload including narrative, alpha score, and delta.
     """
     try:
-        # Use the authenticated user's email from Supabase profile if available
+        # Use the authenticated user's email from MongoDB
         recipient = None
-        if db.supabase:
-            try:
-                prof = db.supabase.table("members").select("email").eq("id", user_id).single().execute()
-                recipient = prof.data.get("email") if prof.data else None
-            except Exception:
-                pass
+        try:
+            user = db.get_user_by_id(user_id)
+            recipient = user.get("email") if user else None
+        except Exception:
+            pass
         report = weekly_reporter.generate_weekly_report(to_email=recipient)
         return report
     except Exception as e:
@@ -2964,26 +2870,12 @@ def run_audit(prediction_id: int, user_id: str = Depends(get_current_user)):
     - Persists it to the DB via db.write_learning_note()
     - Returns the generated note
     """
-    # Fetch the prediction row
-    row = None
-    if db.supabase:
-        try:
-            r = db.supabase.table("predictions").select("*").eq("id", prediction_id).single().execute()
-            row = r.data if r.data else None
-        except Exception:
-            pass
-
-    if not row:
-        # Fallback: SQLite
-        import sqlite3
-        try:
-            with sqlite3.connect(db.DB_PATH) as con:
-                con.row_factory = sqlite3.Row
-                cur = con.execute("SELECT * FROM predictions WHERE id = ?", (prediction_id,))
-                r = cur.fetchone()
-                row = dict(r) if r else None
-        except Exception:
-            pass
+    # Fetch the prediction row from local SQLite
+    try:
+        row = db.get_prediction(prediction_id)
+    except Exception as e:
+        print(f"Error fetching prediction {prediction_id}: {e}")
+        row = None
 
     if not row:
         raise HTTPException(status_code=404, detail=f"Prediction {prediction_id} not found.")

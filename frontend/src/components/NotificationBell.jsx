@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Bell, X, Trash2, Activity } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabaseClient'
 import { Link } from 'react-router-dom'
 
 // Supabase realtime will update bell instantly
@@ -18,16 +17,16 @@ export default function NotificationBell() {
 
     // ── Fetch notifications and pending evaluations ───────────────────
     const fetchNotifications = async () => {
-        if (!user) return
+        if (!user || !token) return
         try {
-            // 1. Fetch from Supabase notifications table
-            const { data, error } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(50)
-            if (!error) setNotifications(data || [])
+            // 1. Fetch from Local Backend notifications
+            const res = await fetch(`${API_BASE}/api/notifications`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setNotifications(data || [])
+            }
 
             // 2. Fetch Pending Evaluations from Backend
             const readyRes = await fetch(`${API_BASE}/api/notifications/pending-evaluations`, {
@@ -46,32 +45,11 @@ export default function NotificationBell() {
         if (!user) return
         fetchNotifications()
 
-        // Poll for pending evaluations every 5 minutes
-        const poll = setInterval(fetchNotifications, 5 * 60 * 1000)
-
-        // setup realtime channel for notifications
-        const channel = supabase
-            .channel('notifications')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-            }, (payload) => {
-                // If it's a new critical notification, flash
-                if (payload.eventType === 'INSERT' && payload.new.type === 'CRITICAL') {
-                    setIsFlashing(true)
-                    setTimeout(() => setIsFlashing(false), 3000)
-                }
-                // Refresh list and summaries (pending evaluations) on any change
-                fetchNotifications()
-            })
-            .subscribe()
-        channelRef.current = channel
+        // Poll for notifications every 2 minutes (replaces Realtime)
+        const poll = setInterval(fetchNotifications, 2 * 60 * 1000)
 
         return () => {
             clearInterval(poll)
-            if (channelRef.current) supabase.removeChannel(channelRef.current)
         }
     }, [user, token])
 
@@ -95,26 +73,29 @@ export default function NotificationBell() {
 
     // Mark as read when dropdown is opened
     useEffect(() => {
-        if (isOpen && user && notifications.some(n => !n.is_read)) {
-            const ids = notifications.filter(n => !n.is_read).map(n => n.id)
-            supabase.from('notifications').update({ is_read: true }).in('id', ids).eq('user_id', user.id)
-                .then(({ error }) => {
-                    if (!error) {
-                        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-                    }
-                })
+        if (isOpen && user && token && notifications.some(n => !n.is_read)) {
+            fetch(`${API_BASE}/api/notifications/mark-read`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).then(res => {
+                if (res.ok) {
+                    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+                    // Dispatch event for Sidebar dot to update immediately
+                    window.dispatchEvent(new Event('notifs-read'))
+                }
+            }).catch(e => console.error('Failed to mark as read', e))
         }
-    }, [isOpen, user, notifications])
+    }, [isOpen, user, token, notifications])
 
     const handleDelete = async (id, e) => {
         e.stopPropagation()
+        if (!token) return
         try {
-            const { error } = await supabase
-                .from('notifications')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', user.id)
-            if (!error) setNotifications(prev => prev.filter(n => n.id !== id))
+            const res = await fetch(`${API_BASE}/api/notifications/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) setNotifications(prev => prev.filter(n => n.id !== id))
         } catch (e) {
             console.error('Failed to delete', e)
         }
@@ -122,13 +103,14 @@ export default function NotificationBell() {
 
     const handleClearAll = async (e) => {
         e.stopPropagation()
-        if (!user) return
+        if (!user || !token) return
         try {
-            await supabase
-                .from('notifications')
-                .delete()
-                .eq('user_id', user.id)
-            setNotifications([])
+            // Backed "mark-read" fills the role of clear for unread dots
+            await fetch(`${API_BASE}/api/notifications/mark-read`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
         } catch (e) {
             console.error('Failed to clear', e)
         }

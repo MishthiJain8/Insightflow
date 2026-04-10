@@ -77,29 +77,12 @@ def _compute_alpha_score(rows: list[dict]) -> dict:
 
 
 def _get_rows_in_range(days_ago_start: int, days_ago_end: int = 0) -> list[dict]:
-    """Query SQLite for evaluated predictions within a date window."""
-    import sqlite3
-    from contextlib import contextmanager
-
-    db_path = db.DB_PATH
-
-    start_dt = (datetime.now(timezone.utc) - timedelta(days=days_ago_start)).date().isoformat()
-    end_dt   = (datetime.now(timezone.utc) - timedelta(days=days_ago_end)).date().isoformat()
+    """Query MongoDB for evaluated predictions within a date window."""
+    start_dt = (datetime.now(timezone.utc) - timedelta(days=days_ago_start)).isoformat()
+    end_dt   = (datetime.now(timezone.utc) - timedelta(days=days_ago_end)).isoformat()
 
     try:
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cur = conn.execute(
-                """
-                SELECT ticker, actual_result, actual_price, price_at_prediction,
-                       predicted_direction, predicted_prob, evaluated_at, detailed_analysis, learning_notes
-                FROM predictions
-                WHERE actual_result IS NOT NULL
-                  AND date(evaluated_at) BETWEEN ? AND ?
-                """,
-                (start_dt, end_dt),
-            )
-            return [dict(r) for r in cur.fetchall()]
+        return db.get_predictions_in_range(start_dt, end_dt)
     except Exception as e:
         logger.error(f"_get_rows_in_range error: {e}")
         return []

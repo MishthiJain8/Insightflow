@@ -54,6 +54,9 @@ export function AuthProvider({ children }) {
                 const data = await res.json()
                 setProfile(data)
             } else {
+                if (res.status === 401) {
+                    signOut()
+                }
                 setProfile(null)
             }
         } catch {

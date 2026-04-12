@@ -166,7 +166,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 security = HTTPBearer()
 
 def get_jwt_secret():
-    secret = os.getenv("JWT_SECRET", "fallback_dev_secret_do_not_use_in_prod")
+    secret = os.getenv("JWT_SECRET", "institutional_grade_fallback_secret_32bytes_min")
     return secret
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

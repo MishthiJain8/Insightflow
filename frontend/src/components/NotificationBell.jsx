@@ -105,14 +105,15 @@ export default function NotificationBell() {
         e.stopPropagation()
         if (!user || !token) return
         try {
-            // Backed "mark-read" fills the role of clear for unread dots
-            await fetch(`${API_BASE}/api/notifications/mark-read`, {
-                method: 'POST',
+            const res = await fetch(`${API_BASE}/api/notifications`, {
+                method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             })
-            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+            if (res.ok) {
+                setNotifications([])
+            }
         } catch (e) {
-            console.error('Failed to clear', e)
+            console.error('Failed to clear notifications', e)
         }
     }
 

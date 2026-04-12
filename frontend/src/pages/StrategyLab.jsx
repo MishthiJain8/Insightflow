@@ -18,7 +18,11 @@ export default function StrategyLab() {
     useEffect(() => {
         // replicate same fetch as App
         const token = window.localStorage.getItem('token') || ''
-        if (!token) return
+        if (!token) {
+            setError("Session expired. Please log in again.")
+            setLoading(false)
+            return
+        }
         fetch(`${API_BASE}/api/portfolio/summary`, { headers: { 'Authorization': `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : Promise.reject('fail'))
             .then(d => setActiveHoldings(d.active_holdings || []))
@@ -32,6 +36,7 @@ export default function StrategyLab() {
     const [activePeriod, setActivePeriod] = useState('1y')
     const [startAnalysis, setStartAnalysis] = useState(false)
     const [horizonDays, setHorizonDays] = useState(5)
+    const [refreshKey, setRefreshKey] = useState(0)
     const [simpleMode, setSimpleMode] = useState(window.simpleMode || false)
 
     React.useEffect(() => {
@@ -154,21 +159,21 @@ export default function StrategyLab() {
                         </div>
                         {/* Run Button */}
                         <button
-                            onClick={() => setStartAnalysis(true)}
-                            disabled={startAnalysis}
-                            className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            onClick={() => {
+                                setStartAnalysis(true)
+                                setRefreshKey(pk => pk + 1)
+                            }}
+                            className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
                             style={{
-                                background: startAnalysis
-                                    ? 'rgba(139,92,246,0.15)'
-                                    : 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                                color: startAnalysis ? 'var(--accent-violet)' : '#fff',
+                                background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                                color: '#fff',
                                 border: '1px solid rgba(139,92,246,0.4)',
-                                boxShadow: startAnalysis ? 'none' : '0 0 20px rgba(139,92,246,0.4)',
+                                boxShadow: '0 0 20px rgba(139,92,246,0.4)',
                                 marginTop: 14,
                             }}
                         >
-                            <Zap size={16} fill={startAnalysis ? 'transparent' : 'currentColor'} />
-                            {startAnalysis ? 'Analysis Running' : '⚡ Run Quant Analysis'}
+                            <Zap size={16} fill="currentColor" />
+                            {startAnalysis ? 'Re-Run Analysis' : '⚡ Run Quant Analysis'}
                         </button>
                     </div>
                 )}
@@ -206,9 +211,9 @@ export default function StrategyLab() {
                     transition={{ type: 'spring', bounce: 0.4, delay: 0.1, duration: 0.8 }}
                     className="mt-4 flex flex-col gap-6"
                 >
-                    <PredictionCard ticker={activeTicker} horizon={horizonDays} />
-                    <BacktestCard ticker={activeTicker} />
-                    <IntelligenceFeed ticker={activeTicker} />
+                    <PredictionCard ticker={activeTicker} horizon={horizonDays} key={`pred-${refreshKey}`} />
+                    <BacktestCard ticker={activeTicker} refreshKey={refreshKey} />
+                    <IntelligenceFeed ticker={activeTicker} key={`feed-${refreshKey}`} />
                 </motion.div>
             )}
 

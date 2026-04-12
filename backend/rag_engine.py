@@ -1,4 +1,4 @@
-import requests
+import httpx
 import json
 import logging
 
@@ -7,10 +7,10 @@ logger = logging.getLogger("rag_engine")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "llama3"
 
-def generate_rag_explanation(ticker: str, prediction_data: dict, news_headlines: list):
+async def generate_rag_explanation(ticker: str, prediction_data: dict, news_headlines: list):
     """
     Uses local Ollama (Llama 3) to generate a conversational explanation of the prediction,
-    using news context and tabular data as RAG context.
+    using news context and tabular data as RAG context (Non-blocking).
     """
     context = f"""
     You are an expert quantitative financial analyst AI named InsightFlow.
@@ -42,10 +42,11 @@ def generate_rag_explanation(ticker: str, prediction_data: dict, news_headlines:
     }
     
     try:
-        response = requests.post(OLLAMA_URL, json=payload, timeout=120)
-        response.raise_for_status()
-        result = response.json()
-        return result.get("response", "Could not generate response from AI.")
+        async with httpx.AsyncClient() as client:
+            response = await client.post(OLLAMA_URL, json=payload, timeout=120)
+            response.raise_for_status()
+            result = response.json()
+            return result.get("response", "Could not generate response from AI.")
     except Exception as e:
         logger.warning(f"Ollama generation failed (is Ollama running?): {e}")
         return None

@@ -175,13 +175,14 @@ def get_all_portfolio(user_id: str) -> list[dict]:
     return [_fmt(r) for r in rows]
 
 def get_profile(user_id: str):
-    query = {}
+    # Search for user_id as string, or as int if possible
+    conditions = [{"user_id": user_id}]
     try:
-        query["user_id"] = int(user_id)
-    except:
-        query["user_id"] = user_id
+        conditions.append({"user_id": int(user_id)})
+    except (ValueError, TypeError):
+        pass
         
-    doc = profiles.find_one(query)
+    doc = profiles.find_one({"$or": conditions})
     return _fmt(doc)
 
 def upsert_profile(payload: dict):
@@ -521,6 +522,11 @@ def delete_notification(notif_id: str) -> None:
             query["id"] = notif_id
             
     notifications.delete_one(query)
+
+def delete_all_notifications(user_id: str) -> None:
+    """Permanently delete all notifications for a specific user."""
+    query = _uid_match(user_id)
+    notifications.delete_many(query)
 
 def clear_notifications(user_id: str = None) -> None:
     query = {}

@@ -20,6 +20,8 @@ import evaluate_model
 from utils.translator import simplify_finance
 from utils import audio_processor
 import asyncio
+from utils.cache_manager import market_cache, sentiment_cache, prediction_cache, rag_cache
+import httpx
 
 # Load backend .env (Gmail credentials etc.)
 try:
@@ -381,6 +383,12 @@ def delete_notification(notif_id: str, user_id: str = Depends(get_current_user))
     if owner_id and str(owner_id) != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this notification")
     db.delete_notification(notif_id)
+    return {"status": "success"}
+
+@app.delete("/api/notifications")
+def delete_all_notifications(user_id: str = Depends(get_current_user)):
+    """Bulk delete all notifications for the current user."""
+    db.delete_all_notifications(user_id)
     return {"status": "success"}
 
 
@@ -1383,7 +1391,7 @@ def analyze_audio(req: AudioAnalyzeRequest):
 
 
 @app.get("/api/predict/{ticker}")
-def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, user_id: str = Depends(get_current_user), save_to_db: bool = True):
+async def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, user_id: str = Depends(get_current_user), save_to_db: bool = True):
     """
     Full offline ML pipeline:
       1. Fetch max OHLCV history → compute MACD + RSI features
@@ -1394,20 +1402,70 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
       6. Predict N-day direction + return predict_proba confidence
       7. Run 'No Hallucination' historical analog pattern scan
     """
-    horizon = max(1, min(90, horizon))  # clamp to [1, 90]
+    horizon = max(1, min(90, horizon))
     ticker_upper = ticker.upper()
-    audio_path   = os.path.join(os.path.dirname(__file__), "sample_audio.wav")
 
-    # ── 1. Fetch & Engineer Features (use max history for pattern scan) ────────
-    try:
-        stock = yf.Ticker(ticker_upper)
-        df, ticker_upper = get_history(ticker_upper, period="max", interval="1d")
-        if df.empty or len(df) < 60:
-            raise HTTPException(status_code=404, detail=f"Insufficient historical data for '{ticker_upper}'.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # --- 1. Check Caches ---
+    cached_all = prediction_cache.get(f"predict_{ticker_upper}_{horizon}")
+    if cached_all:
+        return cached_all
+
+    # --- 2. Define Parallel Tasks ---
+    async def get_market_task():
+        cached = market_cache.get(f"market_full_{ticker_upper}")
+        if cached: return cached
+        df, actual_ticker = await asyncio.to_thread(get_history, ticker_upper, period="max", interval="1d")
+        market_cache.set(f"market_full_{ticker_upper}", (df, actual_ticker), ttl_seconds=600)
+        return df, actual_ticker
+
+    async def get_sentiment_task():
+        cached = sentiment_cache.get(f"sentiment_{ticker_upper}")
+        if cached: return cached
+        try:
+            stock_obj = yf.Ticker(ticker_upper)
+            info_name = stock_obj.info.get("shortName", ticker_upper)
+            gn = GNews(language="en", period="7d", max_results=8)
+            articles = await asyncio.to_thread(gn.get_news, info_name)
+            headlines = [a.get("title", "") for a in articles if a.get("title")]
+            res = await asyncio.to_thread(ai_brain.analyze_sentiment, headlines)
+            sentiment_cache.set(f"sentiment_{ticker_upper}", (res, headlines), ttl_seconds=3600)
+            return res, headlines
+        except Exception:
+            return {"score": 0.0, "label": "Neutral", "per_headline": []}, []
+
+    async def get_audio_task():
+        # Check cache/database for recent audio
+        cached_audio = await asyncio.to_thread(db.get_latest_audio_analysis, ticker_upper)
+        recent_threshold = datetime.utcnow() - timedelta(days=30)
+        if cached_audio and "created_at" in cached_audio:
+            try:
+                # Basic date parsing
+                c_at = cached_audio.get("created_at")
+                if isinstance(c_at, str): c_at = datetime.fromisoformat(c_at.replace("Z", "+00:00"))
+                if c_at.replace(tzinfo=None) > recent_threshold:
+                    return {
+                        "label": "confident" if cached_audio["composite_emotion_score"] > 0.05 else "neutral",
+                        "score": cached_audio["composite_emotion_score"],
+                        "anxiety": cached_audio["anxiety_score"],
+                        "confidence_score": cached_audio["confidence_score"],
+                        "hesitation": cached_audio["hesitation_score"]
+                    }
+            except: pass
+        
+        # Re-analyze if not found/old (still placeholder sine-wave for now)
+        return await asyncio.to_thread(audio_processor.analyze_and_save_audio, ticker_upper)
+
+    # --- 3. Parallel Execution ---
+    (market_res, sentiment_res, audio_emotion) = await asyncio.gather(
+        get_market_task(),
+        get_sentiment_task(),
+        get_audio_task()
+    )
+    df, ticker_upper = market_res
+    sentiment, news_headlines = sentiment_res
+    
+    if df.empty or len(df) < 60:
+        raise HTTPException(status_code=404, detail=f"Insufficient historical data for '{ticker_upper}'.")
 
     close  = df["Close"]
     volume = df["Volume"]
@@ -1502,65 +1560,6 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
     if len(feat_df) < 40:
         raise HTTPException(status_code=422, detail="Not enough data rows after feature engineering.")
 
-    # ── 2. FinBERT Sentiment ───────────────────────────────────────────────────
-    news_headlines = []
-    try:
-        try:
-            info_name  = stock.info.get("shortName", ticker_upper)
-        except Exception:
-            info_name  = ticker_upper
-            
-        gn             = GNews(language="en", period="7d", max_results=8)
-        articles       = gn.get_news(info_name) or []
-        news_headlines = [a.get("title", "") for a in articles if a.get("title")]
-    except Exception as e:
-        print(f"GNews fetch error in predict: {e}")
-
-    try:
-        sentiment = ai_brain.analyze_sentiment(news_headlines)
-    except Exception as e:
-        print(f"Sentiment analysis error: {e}")
-        sentiment = {"score": 0.0, "label": "Neutral", "per_headline": []}
-
-    # ── 3. Audio Intelligence ──────────────────────────────────────────────────
-    # Check if we have a recent (last 30 days) audio analysis in the local database
-    cached_audio = db.get_latest_audio_analysis(ticker_upper)
-    recent_threshold = datetime.utcnow() - timedelta(days=30)
-    
-    should_reanalyze = True
-    if cached_audio and "created_at" in cached_audio:
-        created_at_val = cached_audio.get("created_at")
-        try:
-            if isinstance(created_at_val, str):
-                created_at = datetime.fromisoformat(created_at_val.replace("Z", "+00:00"))
-            else:
-                created_at = created_at_val
-                
-            if created_at and created_at.replace(tzinfo=None) > recent_threshold:
-                should_reanalyze = False
-        except Exception:
-            pass
-
-    if should_reanalyze:
-        # Trigger absolute scan (uses placeholder or fetched clip)
-        audio_emotion = audio_processor.analyze_and_save_audio(ticker_upper)
-    else:
-        # Use cached results
-        audio_emotion = {
-            "label": cached_audio["composite_emotion_score"], # placeholder for label logic if needed
-            "score": cached_audio["composite_emotion_score"],
-            "anxiety": cached_audio["anxiety_score"],
-            "confidence_score": cached_audio["confidence_score"],
-            "hesitation": cached_audio["hesitation_score"]
-        }
-        # Backfill label if it was just score
-        if isinstance(audio_emotion["label"], (int, float)):
-             score = audio_emotion["score"]
-             if score > 0.05: audio_emotion["label"] = "confident"
-             elif score < -0.05: audio_emotion["label"] = "anxious"
-             else: audio_emotion["label"] = "neutral"
-
-    # ── 4. Combine Signals ─────────────────────────────────────────────────────
     combined        = ai_brain.combine_signals(
         text_score  = sentiment.get("score", 0.0),
         audio_score = audio_emotion.get("score", 0.0),
@@ -1584,7 +1583,7 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
 
     # ── 6. Train Ensemble Model (XGBoost + RF + GBC) ──────────────────────────
     rf_cfg = _load_rf_config()
-    p_up, cv_acc = ml_ensemble.train_and_predict(X_train, y_train, X_pred, rf_config=rf_cfg)
+    p_up, cv_acc = await asyncio.to_thread(ml_ensemble.train_and_predict, X_train, y_train, X_pred, rf_config=rf_cfg)
 
     # Predict Direction
     direction   = "UP" if p_up >= 50 else "DOWN"
@@ -1758,7 +1757,7 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
             "false_breakout_risk": false_breakout_risk
         }
         
-        rag_reasoning = rag_engine.generate_rag_explanation(ticker_upper, pred_data, news_headlines)
+        rag_reasoning = await rag_engine.generate_rag_explanation(ticker_upper, pred_data, news_headlines)
         if rag_reasoning:
             reasoning = rag_reasoning
         else:
@@ -1823,6 +1822,7 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
             print(f"Background evaluation error: {e}")
 
     background_tasks.add_task(safe_run_evaluation)
+    prediction_cache.set(f"predict_{ticker_upper}_{horizon}", response, ttl_seconds=600)
     return response
 
 
@@ -1873,7 +1873,7 @@ class QueryRequest(BaseModel):
 
 
 @app.post("/api/query")
-def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+async def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
     """
     Natural language query router:
       1. Parse entities (ticker, qty, price, intent) via spaCy + regex
@@ -2068,7 +2068,7 @@ def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: 
             ]
         }
 
-    ticker       = parsed["ticker"]
+    ticker       = parsed["ticker"].upper()
     entry_price  = parsed.get("price")
     quantity     = parsed.get("quantity") or 1
     intent       = parsed.get("intent", "analyse")
@@ -2076,122 +2076,98 @@ def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: 
     currency     = parsed.get("currency", "USD")
     curr_sym     = "₹" if currency == "INR" else "$"
 
-    # ── 1. Fetch market data ───────────────────────────────────────────────────
-    try:
-        stock = yf.Ticker(ticker)
-        df, ticker = get_history(ticker, period="2y", interval="1d")
-        if df.empty or len(df) < 60:
-            raise HTTPException(status_code=404, detail=f"Insufficient data for {ticker}.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # --- 1. Check Caches ---
+    cached_all = prediction_cache.get(f"query_{ticker}_{user_id}")
+    if cached_all:
+        return cached_all
 
-    close        = df["Close"]
+    # --- 2. Parallel Core Logic (Market + News/Sentiment) ---
+    async def get_market_task():
+        cached = market_cache.get(f"market_{ticker}")
+        if cached: return cached
+        df, actual_ticker = await asyncio.to_thread(get_history, ticker, period="2y", interval="1d")
+        market_cache.set(f"market_{ticker}", (df, actual_ticker))
+        return df, actual_ticker
+
+    async def get_sentiment_task():
+        cached = sentiment_cache.get(f"sentiment_{ticker}")
+        if cached: return cached
+        try:
+            stock_obj = yf.Ticker(ticker)
+            info_name = stock_obj.info.get("shortName", ticker)
+            gn = GNews(language="en", period="7d", max_results=8)
+            articles = await asyncio.to_thread(gn.get_news, info_name)
+            headlines = [a.get("title", "") for a in articles if a.get("title")]
+            res = await asyncio.to_thread(ai_brain.analyze_sentiment, headlines)
+            sentiment_cache.set(f"sentiment_{ticker}", (res, headlines), ttl_seconds=3600)
+            return res, headlines
+        except Exception:
+            return {"score": 0.0, "label": "Neutral", "per_headline": []}, []
+
+    async def get_audio_task():
+        # Pre-emptive fix: skip audio sine placeholder if not needed to save 3-5s
+        return {"score": 0.0, "label": "neutral"}
+
+    # Run in parallel
+    (market_res, sentiment_res, audio_emotion) = await asyncio.gather(
+        get_market_task(),
+        get_sentiment_task(),
+        get_audio_task()
+    )
+    
+    df, ticker = market_res
+    sentiment, news_headlines = sentiment_res
+
+    if df.empty or len(df) < 60:
+        raise HTTPException(status_code=404, detail=f"Insufficient data for {ticker}.")
+
+    close = df["Close"]
     current_price = float(close.iloc[-1])
 
-    # ── 2. Technical indicators (Phase 15: Advanced Quant) ─────────────────────
+    # --- 3. Indicators (CPU Bound - keep in thread if truly slow, but pandas is okay) ---
     import pandas_ta as ta
-
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd  = ema12 - ema26
     sig   = macd.ewm(span=9, adjust=False).mean()
     hist  = macd - sig
-    
-    # Calculate advanced indicators using pandas_ta
     rsi14 = df.ta.rsi(length=14)
-    adx_df = df.ta.adx()            # Returns ADX_14, DMP_14, DMN_14
-    stoch_df = df.ta.stoch()        # Returns STOCHk_14_3_3, STOCHd_14_3_3
-
+    adx_df = df.ta.adx()
+    stoch_df = df.ta.stoch()
     ema20 = close.ewm(span=20, adjust=False).mean()
     ema50 = close.ewm(span=50, adjust=False).mean()
     dist20 = (close - ema20) / ema20
     dist50 = (close - ema50) / ema50
-    vol    = df["Volume"]
-    vol_z  = (vol - vol.rolling(20).mean()) / vol.rolling(20).std()
+    vol_z  = (df["Volume"] - df["Volume"].rolling(20).mean()) / df["Volume"].rolling(20).std()
 
-    # Phase 17: Dynamic Feature Weighting
-    from evaluate_model import _load_weights
-    weights = _load_weights()
+    combined = ai_brain.combine_signals(sentiment.get("score", 0.0), audio_emotion.get("score", 0.0))
+    composite = float(combined["composite"])
 
+    # --- 4. Predictive Intelligence ---
     feat_df = pd.DataFrame({
-        "close": close, 
-        "rsi14": rsi14 * weights.get("rsi14", 1.0), 
-        "macd": macd * weights.get("macd", 1.0), 
-        "signal": sig * weights.get("macd_signal", 1.0),
-        "macd_hist": hist * weights.get("macd_hist", 1.0), 
-        "dist20": dist20 * weights.get("dist_ema20", 1.0), 
-        "dist50": dist50 * weights.get("dist_ema50", 1.0), 
-        "vol_z": vol_z * weights.get("volume_z", 1.0),
-        # Phase 15 features:
-        "adx": (adx_df['ADX_14'] if adx_df is not None and not adx_df.empty else 0),
-        "stoch_k": (stoch_df['STOCHk_14_3_3'] if stoch_df is not None and not stoch_df.empty else 0),
-        "stoch_d": (stoch_df['STOCHd_14_3_3'] if stoch_df is not None and not stoch_df.empty else 0),
+        "close": close, "rsi14": rsi14, "macd": macd, "signal": sig, "macd_hist": hist,
+        "dist20": dist20, "dist50": dist50, "vol_z": vol_z,
+        "adx": (adx_df['ADX_14'] if adx_df is not None else 0),
+        "stoch_k": (stoch_df['STOCHk_14_3_3'] if stoch_df is not None else 0),
+        "stoch_d": (stoch_df['STOCHd_14_3_3'] if stoch_df is not None else 0),
     }).dropna()
     feat_df["target"] = (feat_df["close"].shift(-horizon_days) > feat_df["close"]).astype(int)
     feat_df = feat_df.dropna()
 
-    # ── 3. FinBERT sentiment ───────────────────────────────────────────────────
-    news_headlines = []
-    try:
-        try:
-            info_name = stock.info.get("shortName", ticker)
-        except Exception:
-            info_name = ticker
-            
-        gn       = GNews(language="en", period="7d", max_results=8)
-        articles = gn.get_news(info_name) or []
-        news_headlines = [a.get("title", "") for a in articles if a.get("title")]
-    except Exception as e:
-        print(f"GNews fetch error in query: {e}")
-
-    try:
-        sentiment = ai_brain.analyze_sentiment(news_headlines)
-    except Exception as e:
-        print(f"Sentiment analysis error: {e}")
-        sentiment = {"score": 0.0, "label": "Neutral", "per_headline": []}
-        
-    audio_path    = os.path.join(os.path.dirname(__file__), "sample_audio.wav")
-    try:
-        audio_emotion = ai_brain.analyze_audio_emotion(audio_path)
-    except Exception as e:
-        print(f"Audio analysis error: {e}")
-        audio_emotion = {"score": 0.0, "label": "neutral"}
-        
-    combined      = ai_brain.combine_signals(
-        text_score  = sentiment.get("score", 0.0),
-        audio_score = audio_emotion.get("score", 0.0),
-    )
-    composite = float(combined["composite"])
-
-    # ── 4. RandomForest prediction ─────────────────────────────────────────────
     if len(feat_df) >= 40:
-        feat_df["sentiment"]   = sentiment.get("score", 0.0)
+        feat_df["sentiment"] = sentiment.get("score", 0.0)
         feat_df["audio_score"] = audio_emotion.get("score", 0.0)
-        feat_df["composite"]   = composite
-        FEATS = ["rsi14", "macd", "signal", "macd_hist", "dist20", "dist50", "vol_z",
-                 "adx", "stoch_k", "stoch_d", # Phase 15 features
-                 "sentiment", "audio_score", "composite"]
-        X = feat_df[FEATS].values
-        y = feat_df["target"].values
-        rf_cfg = _load_rf_config()
-        rf = RandomForestClassifier(
-            n_estimators=rf_cfg.get("n_estimators", 200),
-            max_depth=rf_cfg.get("max_depth", 6),
-            min_samples_leaf=rf_cfg.get("min_samples_leaf", 4),
-            random_state=42, n_jobs=-1,
-        )
-        rf.fit(X[:-(horizon_days)], y[:-(horizon_days)])
-        proba   = rf.predict_proba(X[-1:].reshape(1,-1))[0]
-        idx_up  = list(rf.classes_).index(1)
-        p_up    = round(float(proba[idx_up]) * 100, 1)
-        direction   = "UP" if p_up >= 50 else "DOWN"
+        feat_df["composite"] = composite
+        FEATS = ["rsi14", "macd", "signal", "macd_hist", "dist20", "dist50", "vol_z", "adx", "stoch_k", "stoch_d", "sentiment", "audio_score", "composite"]
+        X, y = feat_df[FEATS].values, feat_df["target"].values
+        # Fast fit (no CV)
+        p_up, _ = await asyncio.to_thread(ml_ensemble.train_and_predict, X[:-(horizon_days)], y[:-(horizon_days)], X[-1:].reshape(1,-1))
+        direction = "UP" if p_up >= 50 else "DOWN"
         probability = p_up if direction == "UP" else round(100 - p_up, 1)
     else:
         direction, probability = "UP", 50.0
 
-    last_rsi  = round(float(rsi14.iloc[-1]), 1)
+    last_rsi = round(float(rsi14.iloc[-1]), 1)
     last_macd = round(float(macd.iloc[-1]), 4)
     last_adx  = round(float(adx_df['ADX_14'].iloc[-1]), 1) if adx_df is not None and not adx_df.empty else 0.0
     last_stoch_k = round(float(stoch_df['STOCHk_14_3_3'].iloc[-1]), 1) if stoch_df is not None and not stoch_df.empty else 0.0
@@ -2348,7 +2324,7 @@ def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: 
     # Prediction already logged via predict() call above — no duplicate needed here.
     background_tasks.add_task(evaluate_model.run_evaluation)
 
-    return {
+    res = {
         "parsed":        parsed,
         "resolved_ticker": resolved_ticker,
         "response_text": response_text,
@@ -2364,12 +2340,14 @@ def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, user_id: 
         "confidence_interval": parsed.get("confidence_interval", 50),
         "nlp": nlp_result,
     }
+    prediction_cache.set(f"query_{ticker}_{user_id}", res)
+    return res
 
 
 # ─── Strategic Action Notes (Phase 9) ──────────────────────────────────────────
 
 class GenerateNoteRequest(BaseModel):
-    prediction_id: int
+    prediction_id: str
 
 def compose_action_plan(p_data: dict) -> str:
     """

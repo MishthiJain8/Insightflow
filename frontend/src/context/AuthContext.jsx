@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
 
     // Load initial session from localStorage
     useEffect(() => {
-        const storedToken = localStorage.getItem('access_token')
+        const storedToken = localStorage.getItem('token')
         const storedUser = localStorage.getItem('user_data')
         if (storedToken && storedUser) {
             try {
@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
     }, [])
 
     const login = (jwt, userData) => {
-        localStorage.setItem('access_token', jwt)
+        localStorage.setItem('token', jwt)
         localStorage.setItem('user_data', JSON.stringify(userData))
         setToken(jwt)
         setUser(userData)
@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
     }
 
     const signOut = () => {
-        localStorage.removeItem('access_token')
+        localStorage.removeItem('token')
         localStorage.removeItem('user_data')
         setToken(null)
         setUser(null)

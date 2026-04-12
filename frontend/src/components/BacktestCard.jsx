@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { RefreshCw, TrendingUp, AlertTriangle } from "lucide-react";
 
-export default function BacktestCard({ ticker }) {
+export default function BacktestCard({ ticker, refreshKey }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -12,7 +12,7 @@ export default function BacktestCard({ ticker }) {
     setLoading(true);
     
     // Auth token needed
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     const headers = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -30,7 +30,7 @@ export default function BacktestCard({ ticker }) {
         setError(true);
         setLoading(false);
       });
-  }, [ticker]);
+  }, [ticker, refreshKey]);
 
   if (!ticker) return null;
   if (loading) return <div className="mt-6 p-6 rounded-xl border border-cyan-500/20 bg-[#0f1e37]/60 text-cyan-400 font-mono animate-pulse text-center">Running 3-Year Strategy Simulation on {ticker}...</div>;

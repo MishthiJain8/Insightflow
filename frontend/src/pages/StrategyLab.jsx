@@ -7,6 +7,7 @@ import AccuracyTracker from '../components/AccuracyTracker'
 import PredictionCard from '../components/PredictionCard'
 import IntelligenceFeed from '../components/IntelligenceFeed'
 import UniversalSearch from '../components/UniversalSearch'
+import BacktestCard from '../components/BacktestCard'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -206,6 +207,7 @@ export default function StrategyLab() {
                     className="mt-4 flex flex-col gap-6"
                 >
                     <PredictionCard ticker={activeTicker} horizon={horizonDays} />
+                    <BacktestCard ticker={activeTicker} />
                     <IntelligenceFeed ticker={activeTicker} />
                 </motion.div>
             )}

@@ -1,0 +1,652 @@
+% ============================================================================
+%  InsightFlow — Project Presentation (No TikZ — Universal Compatibility)
+%  Compile: pdflatex insightflow_presentation.tex (run twice for page numbers)
+% ============================================================================
+\documentclass[aspectratio=169, 11pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% ── Colors ──────────────────────────────────────────────────────────────────
+\definecolor{deepblue}{RGB}{15, 30, 55}
+\definecolor{accentcyan}{RGB}{6, 182, 212}
+\definecolor{emerald}{RGB}{16, 185, 129}
+\definecolor{amber}{RGB}{245, 158, 11}
+\definecolor{softred}{RGB}{239, 68, 68}
+
+\setbeamercolor{palette primary}{bg=deepblue, fg=white}
+\setbeamercolor{palette secondary}{bg=deepblue!80, fg=white}
+\setbeamercolor{palette tertiary}{bg=accentcyan, fg=white}
+\setbeamercolor{titlelike}{fg=white, bg=deepblue}
+\setbeamercolor{frametitle}{fg=white, bg=deepblue}
+\setbeamercolor{structure}{fg=accentcyan}
+\setbeamercolor{block title}{bg=accentcyan!20, fg=deepblue}
+\setbeamercolor{block body}{bg=accentcyan!5}
+\setbeamercolor{block title alerted}{bg=softred!15, fg=softred!80!black}
+\setbeamercolor{block body alerted}{bg=softred!5}
+\setbeamercolor{block title example}{bg=emerald!15, fg=emerald!80!black}
+\setbeamercolor{block body example}{bg=emerald!5}
+
+\setbeamerfont{title}{size=\LARGE, series=\bfseries}
+\setbeamerfont{frametitle}{size=\large, series=\bfseries}
+\setbeamertemplate{navigation symbols}{}
+
+% Show ONLY page number in footer --- nothing else
+\setbeamertemplate{footline}{
+  \hfill
+  \usebeamercolor[fg]{page number in head/foot}
+  \usebeamerfont{page number in head/foot}
+  \insertframenumber\,/\,\inserttotalframenumber
+  \hspace*{6pt}\vspace{4pt}
+}
+
+% ── Packages ────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{multicol}
+
+% ── Metadata ────────────────────────────────────────────────────────────────
+\title{InsightFlow}
+\subtitle{AI-Powered Financial Intelligence Platform}
+\author{
+  Nishant Giri \and Mishthi Jain \and Ayush Khodke \and Tannisha Chaudhari
+}
+\institute{
+  3rd Year B.Tech CSE (Cyber Security)\\[4pt]
+  \textit{Mentor: Prof.\ Ankita Jaiswal}
+}
+\date{April 13, 2026}
+
+% ============================================================================
+\begin{document}
+
+% ════════════════════════════════════════════════════════════════════════════
+% SLIDE 1: Title
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}[plain]
+\titlepage
+\end{frame}
+
+% ════════════════════════════════════════════════════════════════════════════
+% SLIDE 2: Agenda
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Agenda}
+\begin{enumerate}
+    \setlength{\itemsep}{8pt}
+    \item What is InsightFlow?
+    \item Key Features (Intelligence + Platform)
+    \item System Architecture
+    \item Technology Stack
+    \item APIs and Data Sources (All Free!)
+    \item How It Works --- The Query Pipeline
+    \item How It Works --- Self-Correction Loop
+    \item What I Built (Full Scope)
+    \item Who Benefits and Use Cases
+    \item Future Roadmap
+\end{enumerate}
+\end{frame}
+
+% ════════════════════════════════════════════════════════════════════════════
+% SLIDE 3: What is InsightFlow?
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{What is InsightFlow?}
+\begin{block}{Mission Statement}
+A \textbf{self-hosted, AI-powered financial intelligence platform} that helps retail investors make data-driven decisions using machine learning, NLP, and multimodal analysis --- with \textbf{zero paid API costs}.
+\end{block}
+
+\vspace{0.3cm}
+\begin{columns}[T]
+\column{0.48\textwidth}
+\textbf{What It Does:}
+\begin{itemize}
+    \item Analyzes stocks, crypto, and indices
+    \item Predicts price direction using ML
+    \item Validates predictions and self-corrects
+    \item Explains outputs in plain English
+    \item Tracks portfolios with AI alerts
+\end{itemize}
+
+\column{0.48\textwidth}
+\textbf{Who It Helps:}
+\begin{itemize}
+    \item Retail investors new to trading
+    \item Quantitative finance enthusiasts
+    \item Anyone wanting AI stock insights
+    \item Students learning ML in finance
+    \item Privacy-focused self-hosted users
+\end{itemize}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Mishthi Jain}}
+\end{frame}
+
+% ════════════════════════════════════════════════════════════════════════════
+% SLIDE 4: Features --- Intelligence Layer
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Key Features --- Intelligence Layer}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{Natural Language Query Terminal}
+\begin{itemize}
+    \item Type plain English: ``\textit{Should I invest in Apple?}''
+    \item 150+ company name mappings
+    \item Fuzzy matching for misspellings
+    \item Score-based intent detection
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{AI Prediction Engine}
+\begin{itemize}
+    \item XGBoost Ensemble on 16 quantitative features
+    \item Fundamentals (P/E), Macro (VIX), Options (Put/Call)
+    \item Dynamic horizon: 1 to 30 days
+    \item ATR-based projected target price
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{FinBERT Sentiment Analysis}
+\begin{itemize}
+    \item ProsusAI/finbert model (runs locally)
+    \item Real-time news via GNews API
+    \item Per-headline score and aggregate
+    \item Bullish / Bearish / Neutral output
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Audio Emotion Intelligence}
+\begin{itemize}
+    \item wav2vec2 speech emotion model
+    \item Measures Anxiety, Confidence, Hesitation
+    \item CEO earnings call tone analysis
+    \item Text + Audio signal fusion engine
+\end{itemize}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Mishthi Jain}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Key Features --- Platform Layer}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{Portfolio Tracker}
+\begin{itemize}
+    \item Buy / Sell / Partial sale support
+    \item Live prices via yfinance
+    \item AI Guardian alerts (SELL / BUY MORE)
+    \item Realized P\&L and trade history
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Self-Correction Engine}
+\begin{itemize}
+    \item Automatic prediction validation
+    \item Rolling 20-prediction accuracy
+    \item Auto-escalation of Ensemble hyperparams
+    \item Dynamic feature weight adjustment
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{Bloomberg-Style Charts}
+\begin{itemize}
+    \item Interactive candlestick charts
+    \item RSI, MACD, Volume overlays
+    \item Real-time market data cards
+    \item Multi-ticker comparison
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Strategy Lab Backtester}
+\begin{itemize}
+    \item 3-Year walk-forward simulation engine
+    \item Calculates historical AI Win Rate
+    \item Compares AI vs purely Buy-and-Hold
+    \item Plotted via interactive Recharts UI
+\end{itemize}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Mishthi Jain}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Key Features --- Additional Capabilities}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{Authentication and Security}
+\begin{itemize}
+    \item OTP-based passwordless login
+    \item JWT token authentication
+    \item Multi-tenant data isolation
+    \item Per-user data separation
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Global Market Coverage}
+\begin{itemize}
+    \item US stocks (NASDAQ, NYSE)
+    \item Indian stocks (NSE / BSE)
+    \item Crypto (BTC, ETH, SOL, DOGE...)
+    \item ETFs and Indices (SPY, NIFTY)
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{Explainable AI}
+\begin{itemize}
+    \item Llama3 RAG (Retrieval-Augmented Generation)
+    \item Merges raw ML metrics + Live News
+    \item Generates conversational human-like reasoning
+    \item Data evidence breakdown per query
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Smart Notifications}
+\begin{itemize}
+    \item Real-time AI-generated alerts
+    \item Precision badges per ticker
+    \item Unread count tracking
+    \item Actionable SELL / BUY MORE signals
+\end{itemize}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Mishthi Jain}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{System Architecture}
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.1}
+
+% Row 1: Frontend
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad React + Vite Frontend (SPA) \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$ \footnotesize{REST API / JSON}
+
+\vspace{0.15cm}
+% Row 2: Backend
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad FastAPI + Python Backend (Uvicorn) \quad}}}
+
+\vspace{0.3cm}
+
+% Row 3: Three columns
+\begin{tabular}{c @{\hspace{0.6cm}} c @{\hspace{0.6cm}} c}
+
+% Column 1: ML Models
+\fcolorbox{accentcyan}{accentcyan!10}{%
+\begin{minipage}{4cm}
+\centering
+\textbf{\textcolor{deepblue}{Local ML Models}}\\[4pt]
+\footnotesize
+\textcolor{deepblue}{%
+FinBERT (Sentiment)\\
+BART-MNLI (Intent)\\
+wav2vec2 (Audio)\\
+XGBoost (Predict)\\
+Llama3 (RAG)
+}
+\end{minipage}
+}
+
+&
+
+% Column 2: APIs
+\fcolorbox{emerald}{emerald!10}{%
+\begin{minipage}{4cm}
+\centering
+\textbf{\textcolor{deepblue}{Free External APIs}}\\[4pt]
+\footnotesize
+\textcolor{deepblue}{%
+yfinance (Market Data)\\
+GNews (Headlines)\\
+Yahoo Search (Tickers)\\
+Gmail SMTP (Email)
+}
+\end{minipage}
+}
+
+&
+
+% Column 3: Databases
+\fcolorbox{amber}{amber!10}{%
+\begin{minipage}{3.2cm}
+\centering
+\textbf{\textcolor{deepblue}{Databases}}\\[4pt]
+\footnotesize
+\textcolor{deepblue}{%
+MongoDB (Primary)\\
+SQLite (Cache)
+}
+\vspace{6pt}
+\end{minipage}
+}
+
+\end{tabular}
+\end{center}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Tannisha Chaudhari}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Technology Stack}
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\small
+\begin{tabular}{l l l}
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Role} \\
+\midrule
+Frontend & React 18 + Vite & Single-page app, hot reload \\
+Frontend & Three.js & 3D animated background \\
+Frontend & Recharts + Lucide Icons & Charts and UI icons \\
+\midrule
+Backend & Python 3.12 + FastAPI & Async REST API server \\
+Backend & Uvicorn (ASGI) & High-performance server \\
+Backend & APScheduler & Cron-scheduled reports \\
+\midrule
+ML / NLP & XGBoost + scikit-learn & Powerful Voting Ensemble \\
+ML / NLP & HuggingFace + Ollama & FinBERT, BART, wav2vec2, Llama3 RAG \\
+ML / NLP & spaCy & NER + dependency parsing \\
+ML / NLP & pandas-ta, NumPy & Technical indicators \\
+\midrule
+Database & MongoDB (local) & Primary data store \\
+Database & SQLite & Prediction cache \\
+\midrule
+Auth & JWT + Gmail SMTP OTP & Passwordless email login \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Tannisha Chaudhari}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{APIs and Data Sources --- All 100\% Free}
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\small
+\begin{tabular}{l c l l}
+\toprule
+\textbf{API / Source} & \textbf{Cost} & \textbf{Limit} & \textbf{What We Use It For} \\
+\midrule
+yfinance & \textcolor{emerald}{\textbf{FREE}} & Soft rate limit & Live prices, 2-year history \\
+GNews & \textcolor{emerald}{\textbf{FREE}} & 100 req/day & News for FinBERT sentiment \\
+Yahoo Search & \textcolor{emerald}{\textbf{FREE}} & Soft limit & Company name to ticker \\
+HuggingFace & \textcolor{emerald}{\textbf{FREE}} & Download once & FinBERT, BART, wav2vec2 \\
+Gmail SMTP & \textcolor{emerald}{\textbf{FREE}} & 500/day & OTP login + weekly reports \\
+spaCy Model & \textcolor{emerald}{\textbf{FREE}} & Unlimited & Named entity recognition \\
+MongoDB & \textcolor{emerald}{\textbf{FREE}} & Self-hosted & All application data \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3cm}
+\begin{exampleblock}{Key Advantage}
+\textbf{No OpenAI. No paid APIs. No subscriptions.} All ML models run locally. Your data never leaves your machine.
+\end{exampleblock}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Tannisha Chaudhari}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{How the Website is Used --- User Flow}
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.0}
+
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad 1. User opens InsightFlow and logs in via OTP email \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$
+\vspace{0.15cm}
+
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad 2. Dashboard loads --- live market cards, portfolio, charts \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$
+\vspace{0.15cm}
+
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad 3. User types a question: ``Should I invest in Apple?'' \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$
+\vspace{0.15cm}
+
+\fcolorbox{emerald}{emerald!10}{\textcolor{deepblue}{\textbf{\quad AI Engine: NLP + ML + Sentiment + Audio = Composite Signal \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$
+\vspace{0.15cm}
+
+\fcolorbox{accentcyan}{deepblue}{\textcolor{white}{\textbf{\quad 4. User gets: BUY / SELL / HOLD + explanation in plain English \quad}}}
+
+\vspace{0.15cm}
+$\big\Downarrow$
+\vspace{0.15cm}
+
+\begin{tabular}{c @{\hspace{0.3cm}} c @{\hspace{0.3cm}} c}
+\fcolorbox{amber}{amber!10}{\textcolor{deepblue}{\footnotesize\textbf{\, Add to Portfolio \,}}}
+&
+\fcolorbox{amber}{amber!10}{\textcolor{deepblue}{\footnotesize\textbf{\, Track Prediction \,}}}
+&
+\fcolorbox{amber}{amber!10}{\textcolor{deepblue}{\footnotesize\textbf{\, Get Weekly Report \,}}}
+\end{tabular}
+
+\end{center}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Nishant Giri}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{How It Works --- 10-Stage Query Pipeline}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{c l l}
+\toprule
+\textbf{Stage} & \textbf{Component} & \textbf{What Happens} \\
+\midrule
+1 & User Input & User types: ``\textit{Should I invest in Apple?}'' \\
+2 & NLP Parser & Extracts ticker (AAPL), intent (buy), horizon (7d) \\
+3 & Zero-Shot Classifier & BART-MNLI confirms intent category \\
+4 & Market Data & yfinance pulls OHLCV, Fundamentals, Options \\
+5 & Feature Engine & Computes 16 Features (TA, ^VIX, P/E, Put/Call) \\
+6 & XGBoost Ensemble & Predicts direction (UP/DOWN) via voted probability \\
+7 & FinBERT Sentiment & Analyzes last 8 news headlines for sentiment bias \\
+8 & wav2vec2 Audio & Analyzes audio context for emotional tone \\
+9 & Signal Fusion & Combines text + audio + technicals into composite \\
+10 & Llama3 RAG Engine& Generates conversational RAG explanation + action \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.2cm}
+\begin{block}{Example Output}
+Direction: \textbf{UP} (68\% confidence) \quad Sentiment: \textbf{Bullish} \quad Action: \textbf{BUY} \quad Target: \textbf{\$198.50}
+\end{block}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Nishant Giri}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{How It Works --- Self-Correction Feedback Loop}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{c l l}
+\toprule
+\textbf{Step} & \textbf{Phase} & \textbf{What Happens} \\
+\midrule
+1 & Predict & Model makes a directional prediction (UP/DOWN) \\
+2 & Store & Prediction logged to MongoDB with target date \\
+3 & Wait & System waits for the horizon period (e.g., 7 days) \\
+4 & Evaluate & Compares predicted vs actual price movement \\
+5 & Score & Updates rolling 20-prediction accuracy tracker \\
+6 & Adjust & Modifies model hyperparameters and feature weights \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3cm}
+\begin{columns}[T]
+\column{0.48\textwidth}
+\begin{alertblock}{If Accuracy $<$ 60\%}
+\begin{itemize}
+    \item Escalate XGBoost/RF Model complexity
+    \item n\_estimators: 200 $\rightarrow$ 300 $\rightarrow$ 400
+    \item max\_depth: 6 $\rightarrow$ 8 $\rightarrow$ 10
+    \item Penalize misleading features
+\end{itemize}
+\end{alertblock}
+
+\column{0.48\textwidth}
+\begin{exampleblock}{If Accuracy $\geq$ 70\%}
+\begin{itemize}
+    \item Relax parameters toward defaults
+    \item Reduce overfitting risk
+    \item Reward accurate feature weights
+    \item Generate AI learning notes
+\end{itemize}
+\end{exampleblock}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Nishant Giri}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{What We Built --- Full Project Scope}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{Backend (Python):}
+\begin{itemize}
+    \item 3,000+ line FastAPI server
+    \item 11 Python modules
+    \item XGBoost Voting Ensemble
+    \item Local Llama3 RAG engine
+    \item Self-correction feedback loop
+    \item Weekly report generator + emailer
+    \item MongoDB + SQLite databases
+    \item JWT auth with OTP via SMTP
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{Frontend (React):}
+\begin{itemize}
+    \item 17 custom React components
+    \item 6 major pages
+    \item Glassmorphism dark-theme UI
+    \item Three.js animated 3D background
+    \item Bloomberg-style candlestick charts
+    \item Natural language terminal \& Llama RAG
+    \item Strategy Lab historical Backtester
+    \item Real-time portfolio tracker & Charts
+\end{itemize}
+\end{columns}
+
+\vspace{0.3cm}
+\begin{block}{Project Scale}
+\centering
+\textbf{8,000+ lines of code} \quad -- \quad \textbf{30+ files} \quad -- \quad \textbf{25+ REST APIs} \quad -- \quad \textbf{4 ML models}
+\end{block}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Nishant Giri}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Who Benefits and Real-World Use Cases}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{The Beginner Investor}
+\begin{itemize}
+    \item Gets AI-backed buy/sell/hold advice
+    \item Everything in plain English
+    \item No need to know RSI or MACD
+    \item Portfolio risk alerts in real-time
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{The Active Trader}
+\begin{itemize}
+    \item Full technical diagnostics
+    \item Multi-ticker comparison
+    \item Per-ticker precision badges
+    \item SL/TP strategic action notes
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{The Student / Researcher}
+\begin{itemize}
+    \item Learn applied ML in finance
+    \item See predictions made and audited
+    \item Inspect model health live
+    \item All models local (zero cost)
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Self-Hosted Advantage}
+\begin{itemize}
+    \item Zero subscription fees
+    \item Complete data ownership
+    \item Runs on any laptop/desktop
+    \item No data leaves your machine
+\end{itemize}
+\end{columns}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Ayush Khodke}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}{Future Roadmap}
+\begin{columns}[T]
+\column{0.48\textwidth}
+
+\textbf{Short-Term Goals:}
+\begin{itemize}
+    \item Options flow analysis
+    \item More international markets
+    \item Mobile-responsive PWA
+    \item LLM-powered conversation mode
+\end{itemize}
+
+\column{0.48\textwidth}
+
+\textbf{Long-Term Vision:}
+\begin{itemize}
+    \item Social sentiment (X / Reddit)
+    \item Multi-model ensemble predictions
+    \item Real-time WebSocket price feeds
+    \item Docker cloud deployment
+\end{itemize}
+\end{columns}
+
+\vspace{0.5cm}
+\begin{block}{Vision}
+\centering
+Transform InsightFlow into an \textbf{open-source alternative to Bloomberg Terminal} ---\\
+democratizing institutional-grade financial intelligence for everyone.
+\end{block}
+\vfill
+{\tiny\textcolor{gray}{Presented by: Ayush Khodke}}
+\end{frame}
+% ════════════════════════════════════════════════════════════════════════════
+\begin{frame}[plain]
+\begin{center}
+\vspace{1.5cm}
+{\Huge \textbf{\textcolor{accentcyan}{Thank You!}}}
+
+\vspace{1cm}
+{\Large \textcolor{gray}{InsightFlow --- AI-Powered Financial Intelligence}}
+
+
+\vspace{0.6cm}
+{\normalsize \textcolor{gray}{Built with Python, React, and Open-Source AI}}
+
+\vspace{0.4cm}
+{\small \textcolor{gray}{All APIs Free --- All Models Local --- Self-Hosted}}
+
+\end{center}
+\end{frame}
+
+\end{document}

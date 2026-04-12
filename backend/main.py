@@ -12,6 +12,8 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
+import ml_ensemble
+import rag_engine
 import ai_brain
 import database as db
 import evaluate_model
@@ -1444,6 +1446,34 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
     true_range = ranges.max(axis=1)
     atr14 = true_range.rolling(14).mean()
 
+    # ── 1.1 Macro/Fundamental Features ─────────────────────────────────────────
+    try:
+        info = stock.info
+        pe_ratio = info.get("trailingPE", 15.0)
+        debt_equity = info.get("debtToEquity", 100.0)
+        if pe_ratio is None: pe_ratio = 15.0
+        if debt_equity is None: debt_equity = 100.0
+        
+        put_call_ratio = 1.0
+        try:
+            options = stock.options
+            if options:
+                chain = stock.option_chain(options[0])
+                p_vol = chain.puts['volume'].sum()
+                c_vol = chain.calls['volume'].sum()
+                if c_vol > 0:
+                    put_call_ratio = float(p_vol / c_vol)
+        except:
+            pass
+
+        vix = yf.Ticker("^VIX").history(period="max", interval="1d")["Close"]
+        vix = vix.reindex(df.index, method="ffill").fillna(20.0)
+    except Exception as e:
+        pe_ratio = 15.0
+        debt_equity = 100.0
+        put_call_ratio = 1.0
+        vix = pd.Series(20.0, index=df.index)
+
     feat_df = pd.DataFrame({
         "close":     close,
         "rsi14":     rsi14,
@@ -1457,6 +1487,10 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
         "bb_low":    bb_low,
         "vwap":      vwap,
         "atr14":     atr14,
+        "pe_ratio":  pe_ratio,
+        "debt_equity": debt_equity,
+        "put_call":  put_call_ratio,
+        "vix":       vix
     }).dropna()
 
     # Target: 1 if close[t+horizon] > close[t]
@@ -1538,7 +1572,7 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
     feat_df["audio_score"] = audio_emotion.get("score", 0.0)
     feat_df["composite"]   = composite_score
     ALL_FEATURES = ["rsi14", "macd", "signal", "macd_hist", "dist20", "dist50", "vol_z",
-                    "bb_up", "bb_low", "vwap", "atr14",
+                    "bb_up", "bb_low", "vwap", "atr14", "pe_ratio", "debt_equity", "put_call", "vix",
                     "sentiment", "audio_score", "composite"]
 
     X = feat_df[ALL_FEATURES].values
@@ -1548,25 +1582,11 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
     X_train, y_train = X[:-5], y[:-5]
     X_pred           = X[-1:]
 
-    # ── 6. Train RandomForest (params from model_config.json) ─────────────────
+    # ── 6. Train Ensemble Model (XGBoost + RF + GBC) ──────────────────────────
     rf_cfg = _load_rf_config()
-    rf = RandomForestClassifier(
-        n_estimators     = rf_cfg.get("n_estimators", 200),
-        max_depth        = rf_cfg.get("max_depth", 6),
-        min_samples_leaf = rf_cfg.get("min_samples_leaf", 4),
-        random_state     = 42,
-        n_jobs           = -1,
-    )
-    rf.fit(X_train, y_train)
+    p_up, cv_acc = ml_ensemble.train_and_predict(X_train, y_train, X_pred, rf_config=rf_cfg)
 
-    # Cross-validated accuracy
-    cv_scores = cross_val_score(rf, X_train, y_train, cv=min(5, len(X_train) // 10), scoring="accuracy")
-    cv_acc    = round(float(cv_scores.mean()), 4)
-
-    # Predict
-    proba       = rf.predict_proba(X_pred)[0]
-    idx_up      = list(rf.classes_).index(1)
-    p_up        = round(float(proba[idx_up]) * 100, 1)
+    # Predict Direction
     direction   = "UP" if p_up >= 50 else "DOWN"
     probability = p_up if direction == "UP" else round(100 - p_up, 1)
 
@@ -1728,12 +1748,26 @@ def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, us
         sent_score = round(sentiment.get("score", 0.0), 4)
         sent_label = sentiment.get("label", "Neutral")
         headlines_preview = news_headlines[:3]
-        if sent_label == "Bullish":
-            reasoning = f"FinBERT scored overall Bullish ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Technical momentum and sentiment align. Random Forest projects {direction} direction with {probability}% confidence."
-        elif sent_label == "Bearish":
-            reasoning = f"FinBERT scored Bearish ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Sentiment headwinds detected. Random Forest projects {direction} direction with {probability}% confidence."
+        
+        pred_data = {
+            "direction": direction,
+            "probability": probability,
+            "current_price": entry_price,
+            "horizon_days": horizon,
+            "sentiment_label": sent_label,
+            "false_breakout_risk": false_breakout_risk
+        }
+        
+        rag_reasoning = rag_engine.generate_rag_explanation(ticker_upper, pred_data, news_headlines)
+        if rag_reasoning:
+            reasoning = rag_reasoning
         else:
-            reasoning = f"Neutral sentiment environment ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Random Forest projects {direction} direction with {probability}% confidence based on technical indicators alone."
+            if sent_label == "Bullish":
+                reasoning = f"FinBERT scored overall Bullish ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Technical + sentiment align. Ensemble projects {direction} with {probability}% confidence."
+            elif sent_label == "Bearish":
+                reasoning = f"FinBERT scored Bearish ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Sentiment headwinds detected. Ensemble projects {direction} with {probability}% confidence."
+            else:
+                reasoning = f"Neutral sentiment ({sent_score:+.2f}). RSI={rsi_val}, MACD={macd_val}. Ensemble projects {direction} with {probability}% confidence based on technicals."
         
         # ATR-based Stop-Loss and Take-Profit
         cur_atr = float(last["atr14"])
@@ -2909,3 +2943,95 @@ def run_audit(prediction_id: int, user_id: str = Depends(get_current_user)):
         "ticker":         row.get("ticker"),
         "actual_result":  row.get("actual_result"),
     }
+
+
+# ─── Backtesting Engine ──────────────────────────────────────────────────────
+
+@app.get("/api/backtest/{ticker}")
+def run_backtest(ticker: str, years: int = 3, user_id: str = Depends(get_current_user)):
+    """
+    Simulates trades over the last [years] years using a fast sliding window.
+    Calculates equity curve starting at $10k.
+    """
+    try:
+        ticker_upper = ticker.upper()
+        df, _ = get_history(ticker_upper, period=f"{years + 1}y", interval="1d")
+        if len(df) < 250 * years:
+            raise HTTPException(status_code=400, detail=f"Insufficient history for {years}y backtest.")
+
+        # Simplified feature generation for speed
+        close = df["Close"]
+        ema12 = close.ewm(span=12, adjust=False).mean()
+        ema26 = close.ewm(span=26, adjust=False).mean()
+        macd = ema12 - ema26
+        signal = macd.ewm(span=9, adjust=False).mean()
+        rsi14 = _compute_rsi(close, 14)
+
+        df["rsi14"] = rsi14
+        df["macd"] = macd
+        df["signal"] = signal
+        
+        # Strategy Logic
+        # Buy condition: MACD bullish cross AND RSI < 70
+        df["buy_signal"] = ((df["macd"] > df["signal"]) & (df["rsi14"] < 70)).astype(int)
+        
+        # Calculate daily returns
+        df["daily_return"] = df["Close"].pct_change().fillna(0)
+        
+        equity = 10000.0
+        equity_curve = []
+        
+        days_in_trade = 0
+        in_trade = False
+        
+        wins = 0
+        total_trades = 0
+        
+        last_recorded_equity = equity
+        
+        for idx in range(1, len(df)):
+            row = df.iloc[idx]
+            today_return = float(row["daily_return"])
+            
+            if not in_trade:
+                if int(row["buy_signal"]) == 1:
+                    in_trade = True
+                    days_in_trade = 1
+                    total_trades += 1
+                    last_recorded_equity = equity
+            else:
+                equity *= (1 + today_return)
+                days_in_trade += 1
+                if days_in_trade >= 5: # Exit after 5 days
+                    in_trade = False
+                    days_in_trade = 0
+                    if equity > last_recorded_equity:
+                        wins += 1
+                        
+            # Record curve roughly monthly to reduce UI payload
+            if idx % 20 == 0:
+                equity_curve.append({
+                    "date": str(df.index[idx]).split()[0],
+                    "value": round(equity, 2)
+                })
+        
+        win_rate = round((wins / total_trades) * 100, 1) if total_trades > 0 else 0
+        total_return = round(((equity - 10000) / 10000) * 100, 1)
+        buy_hold_return = round(((df["Close"].iloc[-1] - df["Close"].iloc[0]) / df["Close"].iloc[0]) * 100, 1)
+
+        return {
+            "status": "success",
+            "ticker": ticker_upper,
+            "equity_curve": equity_curve,
+            "metrics": {
+                "win_rate": win_rate,
+                "total_return_pct": total_return,
+                "buy_hold_return_pct": buy_hold_return,
+                "total_trades": total_trades,
+                "ending_equity": round(equity, 2)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

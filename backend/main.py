@@ -2473,7 +2473,7 @@ def buy_portfolio_holding(req: PortfolioBuyRequest, user_id: str = Depends(get_c
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
 @app.post("/api/portfolio/sell/{item_id}")
-def sell_portfolio_holding(item_id: int, req: PortfolioSellRequest, user_id: str = Depends(get_current_user)):
+def sell_portfolio_holding(item_id: str, req: PortfolioSellRequest, user_id: str = Depends(get_current_user)):
     try:
         # First get the item to calculate PNL and check quantity
         item = db.get_portfolio_item(item_id, user_id)

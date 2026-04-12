@@ -261,9 +261,21 @@ def extract_entities(text: str) -> dict:
     _TICKER_BLOCKLIST = {
         "I", "A", "AN", "IT", "IN", "OR", "IF", "BY", "TO", "OF", "AT",
         "ON", "UP", "DO", "GO", "BE", "ME", "MY", "NO", "SO", "WE",
-        "ALL", "AND", "ARE", "FOR", "THE", "CAN", "HAS", "HAS", "DID",
+        "ALL", "AND", "ARE", "FOR", "THE", "CAN", "HAS", "DID",
         "GET", "GOT", "LET", "MAY", "OUR", "OUT", "OWN", "PUT", "SAY",
         "SEE", "SET", "TWO", "USE", "WAS", "WHO", "WILL", "WHATS", "WHAT",
+        # Phase 18: Expanded blocklist
+        "HOW", "NOW", "ANY", "WAY", "THINK", "ABOUT", "SHOULD",
+        "WOULD", "COULD", "TELL", "GIVE", "SHOW", "HELP", "MAKE",
+        "WANT", "JUST", "SOME", "BEEN", "HAVE", "FROM", "THEY",
+        "THEM", "THEN", "THAN", "ALSO", "LIKE", "THIS", "THAT",
+        "EACH", "MOST", "FIND", "HERE", "KNOW", "TAKE", "COME",
+        "GOOD", "MUCH", "WHEN", "LOOK", "BEST", "DOES", "KEEP",
+        "WITH", "INTO", "OVER", "ONLY", "VERY", "BEEN", "SAID",
+        "TIME", "LONG", "SHORT", "HOLD", "EXIT", "BUY", "SELL",
+        "STOCK", "STOCKS", "SHARE", "SHARES", "MARKET", "PRICE",
+        "RIGHT", "GOING", "STILL", "PLEASE", "THANKS", "THANK",
+        "HELLO", "HI", "HEY",
     }
 
     # --- Ticker ---
@@ -580,6 +592,51 @@ def process_advanced_query(user_text: str) -> dict:
     # actually extract a ticker, treat it as a chat request instead of
     # trying to run the ML pipeline.
     stripped = user_text.strip()
+
+    # Phase 18: Detect greetings, gratitude, and casual questions early
+    _GREETING_PATTERNS = [
+        r'^\s*(hi|hello|hey|howdy|yo|sup|greetings|good\s*(morning|afternoon|evening))\s*[!.?]*\s*$',
+        r'^\s*(thanks|thank\s*you|thx|ty|cheers|appreciate)\s*[!.?]*\s*$',
+        r'^\s*what\s*(can|do)\s*you\s*do\s*[?.!]*\s*$',
+        r'^\s*who\s*are\s*you\s*[?.!]*\s*$',
+        r'^\s*help\s*[!.?]*\s*$',
+    ]
+    for pattern in _GREETING_PATTERNS:
+        if re.search(pattern, stripped, re.IGNORECASE):
+            # Determine response based on the type of greeting
+            lower_stripped = stripped.lower().strip('!?.\' ')
+            if any(g in lower_stripped for g in ['thank', 'thx', 'ty', 'cheers', 'appreciate']):
+                human_msg = (
+                    "You're welcome! Let me know if you need anything else. "
+                    "I can analyze stocks, check your portfolio, or forecast market movements."
+                )
+            elif any(g in lower_stripped for g in ['who are you', 'what can you', 'what do you', 'help']):
+                human_msg = (
+                    "I'm InsightFlow's AI assistant. I can help you with:\n"
+                    "• Stock analysis (e.g., 'How does Apple look?')\n"
+                    "• Buy/sell advice (e.g., 'Should I invest in Tesla?')\n"
+                    "• Price forecasts (e.g., 'Where is Nvidia going next week?')\n"
+                    "• Portfolio review (e.g., 'I have 50 shares of INFY at ₹1800')\n"
+                    "• Market overview (e.g., 'How's the market doing?')\n"
+                    "• Company comparisons (e.g., 'Compare Apple and Microsoft')\n\n"
+                    "Just type naturally — I understand plain English!"
+                )
+            else:
+                human_msg = (
+                    "Hey there! 👋 I'm your financial AI assistant. "
+                    "Ask me anything about stocks, crypto, or your portfolio. "
+                    "For example: 'Should I invest in Apple?' or 'What's happening with Tesla?'"
+                )
+            return {
+                "detected_intent": "chat",
+                "composite_intents": ["chat"],
+                "intent_scores": {},
+                "entities": {},
+                "route": "chat",
+                "result": {},
+                "human_summary": human_msg,
+            }
+
     if len(stripped.split()) <= 2 and not re.search(r"\d", stripped):
         ents = extract_entities(user_text)
         if not ents.get("ticker"):

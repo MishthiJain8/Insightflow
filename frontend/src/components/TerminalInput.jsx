@@ -5,12 +5,14 @@ import { Terminal, ChevronRight, Loader, X, Lightbulb } from 'lucide-react'
 const API_BASE = 'http://localhost:8000'
 
 const EXAMPLE_QUERIES = [
-    'I bought 10 shares of AAPL at $150. When should I sell?',
-    'Should I buy TSLA now?',
-    'What is the price target for RELIANCE.NS?',
-    'I have 50 shares of INFY.NS at ₹1800. Hold or sell?',
-    'Analyse NVDA stock for me',
-    'I bought 5 BTC-USD at $40000. What is my projected profit?',
+    'Should I invest in Apple right now?',
+    'What\'s happening with Tesla today?',
+    'Where is Nvidia going next week?',
+    'I have 50 shares of Infosys at ₹1800. Hold or sell?',
+    'How\'s the market doing?',
+    'Compare Reliance and TCS',
+    'Is it a good time to buy Bitcoin?',
+    'I\'m thinking of selling my Google shares, what do you think?',
 ]
 
 // ─── Colour-coded response renderer ──────────────────────────────────────────
@@ -361,7 +363,7 @@ export default function TerminalInput() {
                 {history.length === 0 && (
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: 1.7 }}>
                         <span style={{ color: 'var(--accent-emerald)' }}>Welcome to InsightFlow Terminal.</span><br />
-                        Type a natural language query — e.g. <span style={{ color: 'var(--accent-cyan)' }}>I bought 10 AAPL at $150. When should I sell?</span><br />
+                        Type a natural language query — e.g. <span style={{ color: 'var(--accent-cyan)' }}>Should I invest in Apple right now?</span><br />
                         Press <kbd style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 3, fontSize: '0.65rem' }}>↑</kbd> for command history · <kbd style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 3, fontSize: '0.65rem' }}>Lightbulb</kbd> for examples.
                     </p>
                 )}
@@ -410,7 +412,7 @@ export default function TerminalInput() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask anything — e.g. I bought 10 shares of AAPL at $150. When should I sell?"
+                    placeholder="Ask me anything — e.g. Should I invest in Apple? or What's happening with Tesla?"
                     disabled={loading}
                     style={{
                         flex: 1, background: 'transparent', border: 'none', outline: 'none',

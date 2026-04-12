@@ -439,7 +439,7 @@ def push_ai_notification(user_id: str, message: str, ticker: str, type: str) -> 
     notif_id = 0
     # local store (SQLite)
     try:
-        notif_id = db.add_notification(type=type, message=simple, ticker=ticker, user_id=int(user_id))
+        notif_id = db.add_notification(type=type, message=simple, ticker=ticker, user_id=user_id)
     except Exception as e:
         print(f"push_ai_notification error: {e}")
     return notif_id

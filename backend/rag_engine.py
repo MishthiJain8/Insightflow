@@ -42,7 +42,7 @@ def generate_rag_explanation(ticker: str, prediction_data: dict, news_headlines:
     }
     
     try:
-        response = requests.post(OLLAMA_URL, json=payload, timeout=30)
+        response = requests.post(OLLAMA_URL, json=payload, timeout=120)
         response.raise_for_status()
         result = response.json()
         return result.get("response", "Could not generate response from AI.")

@@ -1,0 +1,35 @@
+# ─── CORE BACKEND & WEB ───────────────────────────────────────────────────────
+fastapi==0.133.1
+uvicorn==0.41.0
+pydantic==2.12.5
+python-dotenv==1.2.1
+requests==2.32.5
+bcrypt==5.0.0
+PyJWT==2.11.0
+
+# ─── DATABASE & SCHEDULING ────────────────────────────────────────────────────
+pymongo==4.16.0
+APScheduler==3.11.2
+
+# ─── DATA SCIENCE & QUANT ─────────────────────────────────────────────────────
+numpy==2.2.6
+pandas==3.0.1
+pandas-ta==0.4.71b0
+yfinance==1.2.0
+scikit-learn==1.8.0
+xgboost==3.2.0
+scipy==1.17.1
+
+# ─── AI & NLP ENGINES ─────────────────────────────────────────────────────────
+transformers==5.2.0
+torch==2.10.0
+spacy==3.8.11
+gnews==0.4.3
+
+# ─── AUDIO & MULTIMEDIA ───────────────────────────────────────────────────────
+soundfile==0.13.1
+yt-dlp==2026.2.21
+
+# ─── NLP MODELS ──────────────────────────────────────────────────────────────
+# spacy model: en_core_web_sm
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

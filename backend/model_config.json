@@ -3,6 +3,6 @@
     "max_depth": 6,
     "min_samples_leaf": 4,
     "retrain_trigger_count": 0,
-    "last_accuracy": null,
-    "last_evaluated_at": "2026-04-12T22:03:53.792128"
+    "last_accuracy": 0.75,
+    "last_evaluated_at": "2026-05-13T21:31:11.631220"
 }

@@ -13,6 +13,7 @@ from pandas.tseries.offsets import BDay
 from dotenv import load_dotenv
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson import ObjectId
+import math
 
 load_dotenv()
 
@@ -32,8 +33,21 @@ notifications = db_conn["notifications"]
 audio_analysis = db_conn["audio_analysis"]
 otp_sessions = db_conn["otp_sessions"]
 watchlist = db_conn["watchlist"]
+portfolio_snapshots = db_conn["portfolio_snapshots"]
 
 # ─── Helper: Format MongoDB Document ──────────────────────────────────────────
+def _clean_floats(val):
+    if isinstance(val, float):
+        if math.isnan(val) or math.isinf(val):
+            return None
+    elif isinstance(val, dict):
+        for k, v in list(val.items()):
+            val[k] = _clean_floats(v)
+    elif isinstance(val, list):
+        for i in range(len(val)):
+            val[i] = _clean_floats(val[i])
+    return val
+
 def _fmt(doc):
     """Map MongoDB _id to 'id' string for frontend compatibility."""
     if doc:
@@ -43,6 +57,7 @@ def _fmt(doc):
         # but ensure it's a string if it's currently an int, to avoid confusion.
         if "id" in doc and not isinstance(doc["id"], str):
              doc["id"] = str(doc["id"])
+        doc = _clean_floats(doc)
     return doc
 
 def _uid_match(user_id):
@@ -60,7 +75,7 @@ def init_db() -> None:
     """Ensure collections and indexes exist."""
     # Explicitly create collections so they appear in Compass
     existing = db_conn.list_collection_names()
-    for name in ["members", "profiles", "predictions", "portfolio", "notifications", "audio_analysis", "otp_sessions", "watchlist"]:
+    for name in ["members", "profiles", "predictions", "portfolio", "notifications", "audio_analysis", "otp_sessions", "watchlist", "portfolio_snapshots"]:
         if name not in existing:
             db_conn.create_collection(name)
             print(f"  Created collection: {name}")
@@ -76,6 +91,7 @@ def init_db() -> None:
     notifications.create_index([("timestamp", DESCENDING)])
     otp_sessions.create_index("expires_at", expireAfterSeconds=0) # TTL Index
     watchlist.create_index([("user_id", ASCENDING), ("ticker", ASCENDING)], unique=True)
+    portfolio_snapshots.create_index([("user_id", ASCENDING), ("timestamp", DESCENDING)])
     print("Database indexes initialized.")
 
 # No-op schema upgrades (MongoDB is schemaless)
@@ -464,6 +480,25 @@ def sell_portfolio_holding(row_id: str, user_id: str, sell_price: float) -> bool
         "realized_pnl": realized_pnl
     }})
     return True
+
+def save_portfolio_snapshot(user_id: str, total_value: float) -> None:
+    now = datetime.utcnow()
+    # Check if we already have a snapshot for today to avoid flooding
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    portfolio_snapshots.update_one(
+        {"user_id": user_id, "timestamp": {"$gte": today_start.isoformat()}},
+        {"$set": {
+            "user_id": user_id,
+            "total_value": total_value,
+            "timestamp": now.isoformat()
+        }},
+        upsert=True
+    )
+
+def get_portfolio_history(user_id: str, limit: int = 30) -> list[dict]:
+    query = _uid_match(user_id)
+    rows = portfolio_snapshots.find(query).sort("timestamp", ASCENDING).limit(limit)
+    return [_fmt(r) for r in rows]
 
 # ─── Notifications Functions ──────────────────────────────────────────────────
 

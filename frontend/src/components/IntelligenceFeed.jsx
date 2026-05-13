@@ -159,6 +159,18 @@ function TranscriptCard({ transcript }) {
                             </span>
                         </div>
                     )}
+
+                    {/* Source Attribution (Anti-Hallucination) */}
+                    <div style={{
+                        position: 'absolute', top: 10, right: 10,
+                        fontSize: '0.55rem', fontWeight: 800,
+                        color: transcript.title?.includes('Mock') ? 'var(--accent-amber)' : 'var(--accent-emerald)',
+                        textTransform: 'uppercase', letterSpacing: '0.1em',
+                        display: 'flex', alignItems: 'center', gap: 4
+                    }}>
+                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
+                        {transcript.title?.includes('Mock') ? 'Sector-Averaged Simulation' : 'Verified Web Intelligence'}
+                    </div>
                 </div>
             )}
 
@@ -281,6 +293,9 @@ export default function IntelligenceFeed({ ticker }) {
                     <div key={i} style={{ padding: '12px 14px', borderBottom: '1px solid var(--glass-border)' }}>
                         <div className="shimmer" style={{ height: 13, width: '85%', marginBottom: 6, borderRadius: 5 }} />
                         <div className="shimmer" style={{ height: 11, width: '40%', borderRadius: 5 }} />
+                        <div style={{ marginTop: 10, fontSize: '0.6rem', color: 'var(--accent-violet)', fontStyle: 'italic', display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <RefreshCw size={10} className="animate-spin" /> Performing Deep Web Research...
+                        </div>
                     </div>
                 ))}
             </motion.div>

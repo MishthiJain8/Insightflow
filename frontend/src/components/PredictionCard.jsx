@@ -86,7 +86,7 @@ function FeatureRow({ label, value, score, icon: Icon, color }) {
 }
 
 // ─── Direction Badge ──────────────────────────────────────────────────────────
-function DirectionBadge({ direction, probability }) {
+function DirectionBadge({ direction, horizon }) {
     const isUp = direction === 'UP'
     const color = isUp ? 'var(--accent-emerald)' : 'var(--accent-red)'
     const Icon = isUp ? TrendingUp : TrendingDown
@@ -99,7 +99,7 @@ function DirectionBadge({ direction, probability }) {
         }}>
             <Icon size={22} color={color} />
             <span style={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {direction} in 5D
+                {direction} in {horizon}D
             </span>
         </div>
     )
@@ -248,7 +248,7 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
                     padding: '20px 24px', borderRight: '1px solid var(--glass-border)', flexShrink: 0, minWidth: 190,
                 }}>
                     <ProbabilityGauge probability={data.probability} direction={data.direction} />
-                    <DirectionBadge direction={data.direction} probability={data.probability} />
+                    <DirectionBadge direction={data.direction} horizon={horizon} />
                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
                         {data.n_training_samples} training samples<br />
                         RF: {data.n_estimators ?? 200} trees
@@ -331,21 +331,21 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
                                 >
                                     <p style={{ fontSize: '0.77rem', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 10 }}>
                                         We scanned <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{pm.total_history_days.toLocaleString()} days</span> of historical data.
-                                        {' '}Today’s exact technical setup (RSI ±5pts, MACD trend) has occurred{' '}
-                                        <span style={{ color: 'var(--accent-violet)', fontWeight: 700 }}>{pm.total_matches} times</span> in the past.
-                                        {' '}Looking <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{horizon} days</span> ahead from those moments,
-                                        {' '}the stock went <span style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>UP {pm.win_rate}%</span> of the time,
+                                        {' '}The {beginnerMode ? 'setup' : 'Institutional Matcher'} identified {' '}
+                                        <span style={{ color: 'var(--accent-violet)', fontWeight: 700 }}>{pm.total_matches} exact matches</span> where {' '}
+                                        <span style={{ color: 'var(--accent-cyan)' }}>{pm.matched_indicators?.join(', ')}</span> aligned.
+                                        {' '}In these cases, the stock went <span style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>UP {pm.win_rate}%</span> of the time,
                                         {' '}with an average return of{' '}
                                         <span style={{ color: isPositive ? 'var(--accent-emerald)' : 'var(--accent-red)', fontWeight: 700, fontFamily: 'monospace' }}>
                                             {isPositive ? '+' : ''}{pm.avg_return}%
                                         </span>.
                                     </p>
-                                    <div style={{ display: 'flex', gap: 12 }}>
+                                    <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
                                         {[
-                                            { label: 'Analog Matches', value: pm.total_matches, color: 'var(--accent-violet)' },
-                                            { label: `Win Rate (${horizon}D)`, value: `${pm.win_rate}%`, color: winRateColor },
+                                            { label: 'Calculated WR', value: `${pm.win_rate}%`, color: winRateColor },
                                             { label: 'Avg Return', value: `${isPositive ? '+' : ''}${pm.avg_return}%`, color: isPositive ? 'var(--accent-emerald)' : 'var(--accent-red)' },
-                                            { label: 'History Scanned', value: `${pm.total_history_days}d`, color: 'var(--text-muted)' },
+                                            { label: 'Analog Matches', value: pm.total_matches, color: 'var(--accent-violet)' },
+                                            { label: 'Proof Chain', value: '4 Indicators', color: 'var(--accent-cyan)' },
                                         ].map(({ label, value, color }) => (
                                             <div key={label} style={{
                                                 flex: 1, padding: '8px 10px', borderRadius: 8, textAlign: 'center',
@@ -356,6 +356,12 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
                                             </div>
                                         ))}
                                     </div>
+                                    {pm.accuracy_audit && (
+                                        <div style={{ fontSize: '0.6rem', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: 4, opacity: 0.8 }}>
+                                            <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
+                                            Mathematically Verified: {pm.accuracy_audit}
+                                        </div>
+                                    )}
                                 </motion.div>
                             )}
                         </AnimatePresence>

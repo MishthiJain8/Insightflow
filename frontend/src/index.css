@@ -10,6 +10,7 @@
   --accent-violet: #8b5cf6;
   --accent-amber: #f59e0b;
   --accent-red: #ef4444;
+  --accent-fuchsia: #d946ef;
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-hover: rgba(255, 255, 255, 0.06);
@@ -18,6 +19,7 @@
   --text-muted: #475569;
   --glow-cyan: 0 0 20px rgba(0, 242, 255, 0.15);
   --glow-emerald: 0 0 20px rgba(16, 185, 129, 0.3);
+  --glow-fuchsia: 0 0 20px rgba(217, 70, 239, 0.4);
 }
 
 /* ─── Base Reset ────────────────────────────────────────────────────────── */

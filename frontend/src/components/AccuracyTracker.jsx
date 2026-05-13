@@ -123,7 +123,7 @@ function TickerGroup({ ticker, predictions, onRowClick }) {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead style={{ background: 'rgba(255,255,255,0.01)' }}>
                             <tr>
-                                {['Predicted At', 'Direction', 'Confidence', 'Evaluate After', 'Result', 'Price'].map(h => (
+                                {['Predicted At', 'Direction', 'Confidence', 'Evaluate After', 'Result', 'Entry → Actual'].map(h => (
                                     <th key={h} style={{
                                         padding: '6px 12px', textAlign: 'left', fontSize: '0.55rem',
                                         color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -201,7 +201,13 @@ function PredRow({ row, onClick, isCompact }) {
                 <StatusIcon result={row.actual_result} />
             </td>
             <td className="mono" style={{ padding: '8px 12px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                {row.actual_price != null ? row.actual_price.toFixed(2) : '—'}
+                {row.price_at_prediction != null ? row.price_at_prediction.toFixed(2) : '—'} 
+                {' → '}
+                {row.actual_price != null ? (
+                    <span style={{ color: row.actual_result === 'CORRECT' ? 'var(--accent-emerald)' : 'var(--accent-red)' }}>
+                        {row.actual_price.toFixed(2)}
+                    </span>
+                ) : '—'}
             </td>
         </tr>
     )

@@ -132,8 +132,8 @@ function WhatHappenedPanel({ prediction }) {
                         {/* Success Timeline Visual */}
                         <div style={{ margin: '10px 0', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                <span>Day 1</span>
-                                <span>Day {horizon}</span>
+                                <span>Entry Day</span>
+                                <span>Target Date (Day {horizon})</span>
                             </div>
                             <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, position: 'relative', margin: '4px 0' }}>
                                 <div style={{ position: 'absolute', left: 0, top: -4, width: 12, height: 12, borderRadius: '50%', background: 'var(--text-muted)', border: '2px solid rgba(0,0,0,0.5)' }} title="Entry" />
@@ -150,9 +150,9 @@ function WhatHappenedPanel({ prediction }) {
                         {/* Detailed metrics */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {[
-                                { label: 'Price on Day 1', value: entry != null ? `$${entry.toFixed(2)}` : '—', color: 'var(--text-secondary)' },
-                                { label: `Actual Price on Day ${horizon}`, value: actual != null ? `$${actual.toFixed(2)}` : '—', color },
-                                { label: 'Accuracy', value: prediction?.model_accuracy != null ? `${prediction.model_accuracy}%` : '—', color: 'var(--text-secondary)' },
+                                { label: 'Price on Entry Day', value: entry != null ? `$${entry.toFixed(2)}` : '—', color: 'var(--text-secondary)' },
+                                { label: `Actual Price on Target Date (Day ${horizon})`, value: actual != null ? `$${actual.toFixed(2)}` : '—', color },
+                                { label: 'Accuracy', value: prediction?.model_accuracy != null ? `${(prediction.model_accuracy < 2 ? prediction.model_accuracy * 100 : prediction.model_accuracy).toFixed(1)}%` : '—', color: 'var(--text-secondary)' },
                                 { label: 'Verdict', value: result, color },
                             ].map((it, i) => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.03)' }}>
@@ -348,7 +348,7 @@ export default function AuditModal({ prediction, onClose }) {
                                 <Sparkles size={12} color="#34d399" style={{ display: 'inline', marginRight: 6 }} />
                                 {audioData.confidence_score > 0.6
                                     ? `The CEO's voice shows high confidence (${(audioData.confidence_score * 100).toFixed(0)}%), which confirms the positive sentiment detected in news feeds.`
-                                    : `Tactical scan suggests neutral emotional baseline ({audioData.confidence_score*100}%) — price action is primarily technical.`}
+                                    : `Tactical scan suggests neutral emotional baseline (${(audioData.confidence_score*100).toFixed(0)}%) — price action is primarily technical.`}
                             </p>
                         </div>
                     ) : (

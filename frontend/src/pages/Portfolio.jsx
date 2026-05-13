@@ -4,6 +4,7 @@ import { Briefcase, TrendingUp, TrendingDown, DollarSign, Plus, RefreshCw, BarCh
 import { motion, AnimatePresence } from 'framer-motion'
 import UniversalSearch from '../components/UniversalSearch'
 import PrecisionModal from '../components/PrecisionModal'
+import PortfolioHistoryChart from '../components/PortfolioHistoryChart'
 import { useAuth } from '../context/AuthContext'
 
 const API_BASE = 'http://localhost:8000'
@@ -14,7 +15,9 @@ export default function Portfolio() {
     const { user, token } = useAuth()
     const [holdings, setHoldings] = useState([])
     const [history, setHistory] = useState([])
+    const [portfolioHistory, setPortfolioHistory] = useState([])
     const [activeTab, setActiveTab] = useState('active')
+    const [syncStatus, setSyncStatus] = useState({ active: false, message: '', total: 0, current: 0 })
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -28,7 +31,6 @@ export default function Portfolio() {
     const [sellSubmitting, setSellSubmitting] = useState(false)
 
     const [precisionModal, setPrecisionModal] = useState(null) // holds the full alert object
-    const [isReAnalyzing, setIsReAnalyzing] = useState(false)
 
     const [formTicker, setFormTicker] = useState('')
     const [formQty, setFormQty] = useState('')
@@ -81,7 +83,10 @@ export default function Portfolio() {
             if (active_holdings.length > 0) {
                 const res = await fetch(`${API_BASE}/api/portfolio/prices`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ holdings: active_holdings }),
                 })
                 if (res.ok) enriched = await res.json()
@@ -103,6 +108,17 @@ export default function Portfolio() {
         }
     }
 
+    const fetchPortfolioHistory = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/portfolio/history`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) setPortfolioHistory(await res.json())
+        } catch (e) {
+            console.error('Failed to fetch portfolio history', e)
+        }
+    }
+
     const fetchAlerts = async () => {
         setLoadingAlerts(true)
         try {
@@ -118,18 +134,28 @@ export default function Portfolio() {
     }
 
     const handleFullRefresh = async () => {
-        setIsReAnalyzing(true)
+        setSyncStatus({ active: true, message: 'Initiating deep portfolio sync...', total: holdings.length, current: 0 })
         try {
-            // 1. Trigger fresh evaluation (FinBERT + Accuracy Re-calc)
-            await fetch(`${API_BASE}/api/evaluate`, {
+            // Trigger background deep sync
+            const res = await fetch(`${API_BASE}/api/portfolio/sync`, {
+                method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             })
-            // 2. Refresh Portfolio & Alerts
-            await Promise.all([fetchPortfolio(true), fetchAlerts()])
+            const data = await res.json()
+            setSyncStatus(prev => ({ ...prev, message: data.message }))
+            
+            // Poll for completion or just refresh periodically
+            setTimeout(() => {
+                fetchPortfolio(true)
+                fetchAlerts()
+                fetchPortfolioHistory()
+            }, 3000) // First re-fetch soon after start
+
+            // Keep status for 10s to show user it started
+            setTimeout(() => setSyncStatus(prev => ({ ...prev, active: false })), 10000)
         } catch (e) {
-            console.error('Refresh failed', e)
-        } finally {
-            setIsReAnalyzing(false)
+            console.error('Sync failed', e)
+            setSyncStatus({ active: false, message: '', total: 0, current: 0 })
         }
     }
 
@@ -137,16 +163,17 @@ export default function Portfolio() {
         if (user) {
             fetchPortfolio()
             fetchAlerts()
+            fetchPortfolioHistory()
 
             // Phase 9: Live Heartbeat (60 seconds)
             const interval = setInterval(() => {
-                console.log('Heartbeat: Refreshing portfolio data...')
                 fetchPortfolio(true)
                 fetchAlerts()
+                fetchPortfolioHistory()
             }, 60000)
             return () => clearInterval(interval)
         }
-    }, [user])
+    }, [user, token])
 
     // ── Sell: update via backend ─────────────────────────────────────
     const handleSell = async (e) => {
@@ -185,7 +212,7 @@ export default function Portfolio() {
     }
 
     // ── Buy: insert via backend ──────────────────────────────────────
-    const handleMockBuy = async (e) => {
+    const handleLiveBuy = async (e) => {
         e.preventDefault()
         if (!formTicker || !formQty || !formPrice || !user || !token) return
         setFormSubmitting(true)
@@ -208,6 +235,7 @@ export default function Portfolio() {
                 const data = await res.json()
                 throw new Error(data.detail || 'Failed to add holding')
             }
+            alert(`Execution complete. ${formQty} shares of ${formTicker.toUpperCase()} have been securely added to your live portfolio.`)
             setFormTicker('')
             setFormQty('')
             setFormPrice('')
@@ -239,13 +267,14 @@ export default function Portfolio() {
         const sectors = {}
         holdings.forEach(h => {
             const sec = h.sector || 'General'
-            sectors[sec] = (sectors[sec] || 0) + (h.current_value || 0)
+            const val = h.current_value || (h.quantity * (h.live_price || h.buy_price || 0))
+            sectors[sec] = (sectors[sec] || 0) + val
         })
         const chartData = Object.entries(sectors)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
 
-        return { invested, current, unrealizedPnl, unrealizedPct, realizedPnl, chartData }
+        return { invested, current: current || invested, unrealizedPnl, unrealizedPct, realizedPnl, chartData }
     }, [holdings, history])
 
     // push portfolio numbers to three.js whenever it changes
@@ -271,9 +300,9 @@ export default function Portfolio() {
                             <div className="flex items-center gap-3">
                                 <p className="text-sm text-gray-400 font-medium tracking-wide">Live Intelligence Portfolio</p>
                                 <div className="h-1 w-1 rounded-full bg-gray-600" />
-                                <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${isReAnalyzing ? 'text-cyan-400' : 'text-gray-500'}`}>
-                                    <Activity size={10} className={isReAnalyzing ? 'animate-pulse' : ''} />
-                                    {isReAnalyzing ? 'Deep Analysis Active' : 'Real-time Tracking'}
+                                <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${syncStatus.active ? 'text-cyan-400' : 'text-gray-500'}`}>
+                                    <Activity size={10} className={syncStatus.active ? 'animate-pulse' : ''} />
+                                    {syncStatus.active ? 'Deep Analysis Active' : 'Real-time Tracking'}
                                 </div>
                             </div>
                         </div>
@@ -283,23 +312,53 @@ export default function Portfolio() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleFullRefresh}
-                        disabled={isReAnalyzing}
-                        className="group relative flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-all overflow-hidden"
+                        disabled={syncStatus.active}
+                        className="group relative flex items-center gap-2 px-6 py-3 rounded-2xl bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-white text-sm font-bold shadow-[0_0_30px_rgba(139,92,246,0.2)] hover:shadow-[0_0_40px_rgba(139,92,246,0.4)] transition-all overflow-hidden border border-white/10"
                     >
-                        <div className="absolute inset-0 bg-linear-to-r from-cyan-500/10 to-violet-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <RefreshCw size={14} className={`${isReAnalyzing ? 'animate-spin text-cyan-400' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                        {isReAnalyzing ? 'Re-analyzing...' : 'Deep Sync'}
+                        <RefreshCw size={16} className={`${syncStatus.active ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                        {syncStatus.active ? 'Syncing Insights...' : 'Deep Analytics Sync'}
                     </button>
 
                     <button
-                        onClick={() => {/* Toggle form maybe? but user likes seeing it probably */ }}
-                        className="p-2.5 rounded-xl bg-[#06b6d4]/10 border border-[#06b6d4]/20 text-[#06b6d4] hover:bg-[#06b6d4]/20 transition-all font-bold"
+                        className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all font-bold group"
                         title="Add New Asset"
                     >
-                        <Plus size={20} />
+                        <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
                     </button>
                 </div>
             </div>
+
+            {/* Sync Progress Bar (Condition: syncStatus.active) */}
+            <AnimatePresence>
+                {syncStatus.active && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="px-2"
+                    >
+                        <div className="glass rounded-3xl p-5 border border-cyan-500/20 bg-cyan-500/5 relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400 flex items-center gap-2">
+                                    <Activity size={12} className="animate-pulse" /> {syncStatus.message}
+                                </span>
+                                <span className="text-[10px] font-mono text-fuchsia-400 opacity-50">Pulse Synchronizing...</span>
+                            </div>
+                            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                <motion.div 
+                                    className="h-full bg-linear-to-r from-cyan-500 via-fuchsia-500 to-cyan-500 bg-size-[200%_100%] shadow-[0_0_20px_rgba(139,92,246,0.5)]"
+                                    initial={{ width: '0%', backgroundPosition: '0% 0%' }}
+                                    animate={{ width: '100%', backgroundPosition: '200% 0%' }}
+                                    transition={{ 
+                                        width: { duration: 10, ease: "linear" },
+                                        backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Quick Action: Add Mock Holding */}
             <motion.div
@@ -314,10 +373,10 @@ export default function Portfolio() {
                 <div className="flex flex-col lg:flex-row items-center gap-8 relative z-10">
                     <div className="lg:w-1/4">
                         <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                            Execute <span className="text-[#06b6d4]">Mock Order</span>
+                            Execute <span className="text-[#06b6d4]">Live Order</span>
                         </h3>
                         <p className="text-xs text-gray-400 leading-relaxed font-medium">
-                            Simulate asset acquisition to test AI strategies and track potential performance.
+                            Execute live asset acquisition to test AI strategies and track potential performance.
                         </p>
                     </div>
 
@@ -387,7 +446,7 @@ export default function Portfolio() {
                             <label className="text-[10px] uppercase font-bold tracking-widest text-gray-500 ml-1">Commit Order</label>
                             <button
                                 disabled={formSubmitting || !formTicker}
-                                onClick={handleMockBuy}
+                                onClick={handleLiveBuy}
                                 className="group w-full h-[46px] bg-linear-to-r from-[#06b6d4] to-[#0891b2] text-white font-black text-xs rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_30px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 {formSubmitting ? (
@@ -402,7 +461,7 @@ export default function Portfolio() {
 
             </motion.div>
 
-            {(loading || isReAnalyzing) ? (
+            {(loading || syncStatus.active) ? (
                 <div className="flex flex-col gap-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[1, 2, 3].map(i => <div key={i} className="animate-pulse h-32 rounded-2xl bg-white/5 border border-white/10" />)}
@@ -570,9 +629,32 @@ export default function Portfolio() {
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Donut Chart */}
+                        {/* Historical Performance Chart */}
                         <motion.div
                             initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="glass p-8 rounded-4xl border lg:col-span-2 flex flex-col min-h-[450px]"
+                            style={{ background: 'rgba(10, 15, 25, 0.4)', borderColor: 'rgba(255,255,255,0.08)' }}
+                        >
+                            <div className="w-full flex items-center justify-between mb-8">
+                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-3">
+                                    <Activity size={16} className="text-[#8b5cf6]" /> High-Res <span className="text-white">Equity Performance</span>
+                                </h3>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-[#8b5cf6] bg-[#8b5cf6]/10 px-2.5 py-1 rounded-lg border border-[#8b5cf6]/20 uppercase tracking-widest">
+                                        {portfolioHistory.length > 90 ? 'All-Time Multi-Phase' : 'Recent Performance'}
+                                    </span>
+                                    <div className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-pulse" />
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <PortfolioHistoryChart data={portfolioHistory} />
+                            </div>
+                        </motion.div>
+
+                        {/* Sector Donut Chart */}
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             className="glass p-8 rounded-4xl border col-span-1 flex flex-col items-center min-h-[450px]"
                             style={{ background: 'rgba(10, 15, 25, 0.4)', borderColor: 'rgba(255,255,255,0.08)' }}

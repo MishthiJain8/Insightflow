@@ -39,26 +39,30 @@ export default function BacktestCard({ ticker, refreshKey }) {
   return (
     <div className="mt-6 bg-[#0f1e37]/60 backdrop-blur-md rounded-xl border border-cyan-500/20 p-6 shadow-[0_0_15px_rgba(6,182,212,0.1)] transition-all">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
+        <h2 className="text-xl font-bold bg-linear-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
           <RefreshCw className="w-5 h-5 text-cyan-400" />
           Strategy Lab: 3-Year Walk-Forward Backtest ({ticker})
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#0f1e37] p-4 rounded-lg border border-cyan-500/10 text-center shadow-inner">
-          <p className="text-gray-400 text-xs mb-1 font-mono uppercase">AI Win Rate</p>
-          <p className="text-2xl font-bold text-emerald-400">{data.metrics.win_rate}%</p>
+          <p className="text-gray-400 text-[10px] mb-1 font-mono uppercase">AI Win Rate</p>
+          <p className="text-xl font-bold text-emerald-400">{data.win_rate}%</p>
         </div>
         <div className="bg-[#0f1e37] p-4 rounded-lg border border-cyan-500/10 text-center shadow-inner">
-          <p className="text-gray-400 text-xs mb-1 font-mono uppercase">Strategy vs Buy & Hold</p>
-          <p className={`text-2xl font-bold ${data.metrics.total_return_pct > data.metrics.buy_hold_return_pct ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {data.metrics.total_return_pct}% vs {data.metrics.buy_hold_return_pct}%
+          <p className="text-gray-400 text-[10px] mb-1 font-mono uppercase">Return vs B&H</p>
+          <p className={`text-xl font-bold ${data.total_return > data.buy_hold_return ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {data.total_return}% vs {data.buy_hold_return}%
           </p>
         </div>
         <div className="bg-[#0f1e37] p-4 rounded-lg border border-cyan-500/10 text-center shadow-inner">
-          <p className="text-gray-400 text-xs mb-1 font-mono uppercase">Trades Executed</p>
-          <p className="text-2xl font-bold text-cyan-400">{data.metrics.total_trades}</p>
+          <p className="text-gray-400 text-[10px] mb-1 font-mono uppercase">Sharpe Ratio</p>
+          <p className="text-xl font-bold text-cyan-400">{data.sharpe_ratio}</p>
+        </div>
+        <div className="bg-[#0f1e37] p-4 rounded-lg border border-cyan-500/10 text-center shadow-inner">
+          <p className="text-gray-400 text-[10px] mb-1 font-mono uppercase">Max Drawdown</p>
+          <p className="text-xl font-bold text-red-400">-{data.max_drawdown}%</p>
         </div>
       </div>
 

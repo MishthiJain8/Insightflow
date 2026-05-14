@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import UniversalSearch from '../components/UniversalSearch'
 import PrecisionModal from '../components/PrecisionModal'
 import PortfolioHistoryChart from '../components/PortfolioHistoryChart'
+import TickerModal from '../components/TickerModal'
 import { useAuth } from '../context/AuthContext'
 
 const API_BASE = 'http://localhost:8000'
@@ -31,6 +32,7 @@ export default function Portfolio() {
     const [sellSubmitting, setSellSubmitting] = useState(false)
 
     const [precisionModal, setPrecisionModal] = useState(null) // holds the full alert object
+    const [selectedTicker, setSelectedTicker] = useState(null) // holds ticker name for TickerModal
 
     const [formTicker, setFormTicker] = useState('')
     const [formQty, setFormQty] = useState('')
@@ -285,6 +287,14 @@ export default function Portfolio() {
 
     return (
         <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto fade-up" style={{ padding: '0 0', paddingBottom: '10vh' }}>
+
+            {/* Modals */}
+            {selectedTicker && (
+                <TickerModal 
+                    ticker={selectedTicker} 
+                    onClose={() => setSelectedTicker(null)} 
+                />
+            )}
 
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
@@ -785,11 +795,20 @@ export default function Portfolio() {
                                                     >
                                                         <td className="px-6 py-5 rounded-l-2xl border-l border-t border-b border-white/5">
                                                             <div className="flex items-center gap-4">
-                                                                <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center font-black text-xs text-white group-hover:border-cyan-500/30 transition-colors">
+                                                                <div 
+                                                                    onClick={() => setSelectedTicker(h.ticker)}
+                                                                    className="w-10 h-10 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center font-black text-xs text-white group-hover:border-cyan-500/30 transition-colors cursor-pointer"
+                                                                    title="View Detailed Chart & Analytics"
+                                                                >
                                                                     {(h.ticker || '?')[0]}
                                                                 </div>
                                                                 <div>
-                                                                    <div className="font-black text-sm text-white tracking-wider tabular-nums">{h.ticker || 'N/A'}</div>
+                                                                    <div 
+                                                                        onClick={() => setSelectedTicker(h.ticker)}
+                                                                        className="font-black text-sm text-white tracking-wider tabular-nums cursor-pointer hover:text-cyan-400 transition-colors"
+                                                                    >
+                                                                        {h.ticker || 'N/A'}
+                                                                    </div>
                                                                     <div className="text-[10px] text-gray-600 font-bold uppercase mt-0.5">{h.buy_date ? new Date(h.buy_date).toLocaleDateString() : '—'}</div>
                                                                 </div>
                                                             </div>
@@ -884,7 +903,12 @@ export default function Portfolio() {
                                                         className="bg-black/20 hover:bg-black/40 transition-all rounded-2xl"
                                                     >
                                                         <td className="px-6 py-5 rounded-l-2xl border-l border-t border-b border-white/5">
-                                                            <div className="font-black text-sm text-gray-400 tracking-wider tabular-nums">{h.ticker || 'N/A'}</div>
+                                                            <div 
+                                                                onClick={() => setSelectedTicker(h.ticker)}
+                                                                className="font-black text-sm text-gray-400 tracking-wider tabular-nums cursor-pointer hover:text-cyan-400 transition-colors"
+                                                            >
+                                                                {h.ticker || 'N/A'}
+                                                            </div>
                                                             <div className="text-[10px] text-gray-600 font-bold uppercase mt-1">Exited {h.sell_date ? new Date(h.sell_date).toLocaleDateString() : '—'}</div>
                                                         </td>
                                                         <td className="px-4 py-5 border-t border-b border-white/5">

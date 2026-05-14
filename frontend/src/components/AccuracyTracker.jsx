@@ -123,7 +123,7 @@ function TickerGroup({ ticker, predictions, onRowClick }) {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead style={{ background: 'rgba(255,255,255,0.01)' }}>
                             <tr>
-                                {['Predicted At', 'Direction', 'Confidence', 'Evaluate After', 'Result', 'Entry → Actual'].map(h => (
+                                {['Predicted At', 'Horizon', 'Direction', 'Confidence', 'Target Date', 'Result', 'Entry → Actual'].map(h => (
                                     <th key={h} style={{
                                         padding: '6px 12px', textAlign: 'left', fontSize: '0.55rem',
                                         color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -168,6 +168,9 @@ function PredRow({ row, onClick, isCompact }) {
                 </td>
             )}
             <td style={{ padding: '8px 12px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>{dateStr}</td>
+            <td style={{ padding: '8px 12px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                {row.prediction_horizon ? `${row.prediction_horizon} Days` : '—'}
+            </td>
             <td style={{ padding: '8px 12px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: dirColor, fontSize: '0.7rem', fontWeight: 700 }}>
                     <DirIcon size={10} />{row.predicted_direction}
@@ -191,10 +194,10 @@ function PredRow({ row, onClick, isCompact }) {
                         fontSize: '0.55rem', fontWeight: 700, color: 'var(--text-muted)',
                         display: 'inline-flex', alignItems: 'center', gap: 3
                     }}>
-                        <Clock size={10} /> {evalStr}
+                        <Clock size={10} /> {row.target_date || evalStr}
                     </span>
                 ) : (
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{evalStr}</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{row.target_date || evalStr}</span>
                 )}
             </td>
             <td style={{ padding: '8px 12px', textAlign: 'center' }}>

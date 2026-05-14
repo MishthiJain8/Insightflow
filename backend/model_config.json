@@ -1,8 +1,8 @@
 {
-    "n_estimators": 200,
-    "max_depth": 6,
-    "min_samples_leaf": 4,
-    "retrain_trigger_count": 0,
-    "last_accuracy": 0.75,
-    "last_evaluated_at": "2026-05-13T21:31:11.631220"
+    "n_estimators": 400,
+    "max_depth": 10,
+    "min_samples_leaf": 2,
+    "retrain_trigger_count": 2,
+    "last_accuracy": 0.45,
+    "last_evaluated_at": "2026-05-14T12:55:03.606818"
 }

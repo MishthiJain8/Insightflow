@@ -128,20 +128,20 @@ def run_evaluation() -> dict:
                 logger.warning(f"Row {row['id']} has no entry price — skipping.")
                 continue
 
-            # If target_date is in the past, fetch the price ON the target_date
+            # If target_date is set, always evaluate against the exact price on that date (or next trading day)
             target_date_str = row.get("target_date")
             if target_date_str:
                 try:
                     from datetime import timedelta
                     target_dt = datetime.strptime(target_date_str, "%Y-%m-%d")
-                    now_dt = datetime.utcnow()
-                    # Only do historical fetch if the target_date is more than 1 day in the past
-                    if (now_dt - target_dt).days > 1:
-                        start_str = target_dt.strftime("%Y-%m-%d")
-                        end_str = (target_dt + timedelta(days=5)).strftime("%Y-%m-%d")
-                        past_hist = yf.Ticker(ticker).history(start=start_str, end=end_str, interval="1d")
-                        if not past_hist.empty:
-                            actual_price = float(past_hist["Close"].iloc[0])
+                    start_str = target_dt.strftime("%Y-%m-%d")
+                    # Fetch next 5 days to ensure we get the correct closing price even over weekends/holidays
+                    end_str = (target_dt + timedelta(days=5)).strftime("%Y-%m-%d")
+                    
+                    past_hist = yf.Ticker(ticker).history(start=start_str, end=end_str, interval="1d")
+                    if not past_hist.empty:
+                        # Price exactly at or just after target_date
+                        actual_price = float(past_hist["Close"].iloc[0])
                 except Exception as e:
                     logger.warning(f"Error fetching historical target_date price for {ticker}: {e}")
 

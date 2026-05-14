@@ -1,5 +1,13 @@
 {
-    "rsi14": 1.05,
-    "macd_hist": 1.05,
-    "volume_z": 0.95
+    "rsi14": 1.0,
+    "macd": 1.0,
+    "macd_signal": 1.0,
+    "macd_hist": 1.0,
+    "volume_z": 1.0,
+    "bb_upper": 1.0,
+    "bb_lower": 1.0,
+    "vwap": 1.0,
+    "atr14": 1.0,
+    "dist_ema20": 1.0,
+    "dist_ema50": 1.0
 }

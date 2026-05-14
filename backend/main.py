@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import yfinance as yf
@@ -543,31 +543,24 @@ async def evaluate_holdings(user_id: str):
         peak_status = check_for_market_peak(ticker, live, rsi, sentiment_score)
         
         if peak_status["peak"]:
-            # CRITICAL Peak Alert
-            msg = f"🚨 URGENT: {ticker} has reached a mathematical peak. Technicals are overheated (RSI: {rsi:.1f}). High probability of a trend reversal. Suggest: Sell now to lock in {pl_pct:.1f}% profit."
-            notif_id = push_ai_notification(user_id, msg, ticker, "CRITICAL")
-            
+            # Prevent alert spam (max 1 peak alert per 24h per ticker)
+            recent_peak = db.notifications.find_one({
+                "user_id": user_id,
+                "ticker": ticker,
+                "type": "CRITICAL",
+                "timestamp": {"$gt": (datetime.utcnow() - timedelta(hours=24)).isoformat()}
+            })
+            if recent_peak:
+                continue
+
             # Auto-generate Audit Note (Proof)
             proof = f"Price is {live:.2f} (near 1y resistance ${peak_status['resistance']:.2f}); momentum is exhausted (RSI: {rsi:.1f}). "
             if peak_status.get("is_divergence"):
                 proof += "Sentiment divergence detected: Price at 52-week high but news sentiment is decaying."
-            
-            # Since generating an audit note needs a prediction_id, we'll log this as a 'Critical Signal' prediction event
-            try:
-                p_id = db.log_prediction(
-                    user_id=user_id,
-                    ticker=ticker,
-                    price_at_prediction=live,
-                    predicted_direction="DOWN",
-                    predicted_prob=85.0, # High conviction peak
-                    model_accuracy=0.8,
-                    detailed_analysis=json.dumps({"rsi": rsi, "peak_detection": peak_status, "sentiment_score": sentiment_score}),
-                    horizon=0 # Immediate/Peak
-                )
-                # Save the proof as a learning note
-                db.save_learning_note(p_id, f"### PEAK ANALYSIS PROOF\n{proof}\n\n### MANDATORY ACTION STEPS\n- SELL IMMEDIATELY to protect the {pl_pct:.1f}% gain.")
-            except Exception as e:
-                print(f"Failed to auto-generate audit note for critical alert: {e}")
+
+            # CRITICAL Peak Alert with Proof appended
+            msg = f"🚨 URGENT: {ticker} has reached a mathematical peak. Technicals are overheated (RSI: {rsi:.1f}). High probability of a trend reversal. Suggest: Sell now to lock in {pl_pct:.1f}% profit.\n\n[Analysis Proof]: {proof}"
+            notif_id = push_ai_notification(user_id, msg, ticker, "CRITICAL")
             
             continue # Skip normal alerts if critical triggered
 
@@ -1393,7 +1386,7 @@ def analyze_audio(req: AudioAnalyzeRequest):
 
 
 @app.get("/api/predict/{ticker}")
-async def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int = 5, user_id: str = Depends(get_current_user), save_to_db: bool = True, skip_rag: bool = False):
+async def predict(ticker: str, background_tasks: BackgroundTasks, request: Request = None, horizon: int = 5, user_id: str = Depends(get_current_user), save_to_db: bool = True, skip_rag: bool = False):
     """
     Full offline ML pipeline:
       1. Fetch max OHLCV history → compute MACD + RSI features
@@ -1813,6 +1806,9 @@ async def predict(ticker: str, background_tasks: BackgroundTasks, horizon: int =
         }
         analysis_blob = json.dumps(analysis_blob_dict)
         
+        if request and await request.is_disconnected():
+            return {"status": "cancelled"}
+            
         if save_to_db:
             db.log_prediction(
                 user_id             = user_id,
@@ -2665,7 +2661,7 @@ async def get_portfolio_history_api(user_id: str = Depends(get_current_user)):
 async def deep_portfolio_sync(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
     """
     Triggers a deep re-evaluation of all portfolio holdings in the background.
-    Re-runs models, fetches news, and updates status signals.
+    Warms up the ML caches without saving to the Strategy Lab predictions DB.
     """
     holdings = db.get_portfolio_holdings(user_id)
     if not holdings:
@@ -2676,13 +2672,10 @@ async def deep_portfolio_sync(background_tasks: BackgroundTasks, user_id: str = 
         for h in holdings:
             ticker = h["ticker"]
             try:
-                # Force a fresh prediction and save to DB (updates status)
-                await predict(ticker, background_tasks, horizon=7, user_id=user_id, save_to_db=True, skip_rag=True)
+                # Cache warmup (do not save to DB to keep Strategy Lab pure)
+                await predict(ticker, background_tasks, request=None, horizon=5, user_id=user_id, save_to_db=False, skip_rag=True)
             except Exception as e:
                 print(f"Sync error for {ticker}: {e}")
-        
-        # Trigger an evaluation run after sync
-        evaluate_model.run_evaluation()
         
     background_tasks.add_task(run_deep_sync)
     return {"status": "started", "message": f"Syncing {len(holdings)} holdings in background..."}
@@ -3123,7 +3116,9 @@ def run_backtest(ticker: str, years: int = 3, user_id: str = Depends(get_current
     try:
         ticker_upper = ticker.upper()
         df, _ = get_history(ticker_upper, period=f"{years + 1}y", interval="1d")
-        if len(df) < 250 * years:
+        if df is not None and not df.empty:
+            df.dropna(subset=["Close"], inplace=True)
+        if df is None or len(df) < 250 * years:
             raise HTTPException(status_code=400, detail=f"Insufficient history for {years}y backtest.")
 
         # Simplified feature generation for speed
@@ -3197,7 +3192,16 @@ def run_backtest(ticker: str, years: int = 3, user_id: str = Depends(get_current
         
         win_rate = round((wins / total_trades) * 100, 1) if total_trades > 0 else 0
         total_return = round(((equity - 10000) / 10000) * 100, 1)
-        buy_hold_return = round(((df["Close"].iloc[-1] - df["Close"].iloc[0]) / df["Close"].iloc[0]) * 100, 1)
+        
+        start_close = float(df["Close"].iloc[0])
+        end_close = float(df["Close"].iloc[-1])
+        import math
+        if start_close == 0 or math.isnan(start_close) or math.isnan(end_close):
+            buy_hold_return = 0.0
+        else:
+            buy_hold_return = round(((end_close - start_close) / start_close) * 100, 1)
+            if math.isinf(buy_hold_return) or math.isnan(buy_hold_return):
+                buy_hold_return = 0.0
 
         return {
             "status": "success",

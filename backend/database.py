@@ -258,6 +258,18 @@ def log_prediction(
     horizon: int = 7,
 ) -> str:
     now = datetime.utcnow()
+    
+    # Deduplication: Prevent double-saves within 60 seconds
+    recent = predictions.find_one({
+        "user_id": user_id,
+        "ticker": ticker.upper(),
+        "prediction_horizon": horizon,
+        "status": "PENDING",
+        "date_predicted": {"$gt": (now - timedelta(seconds=60)).isoformat()}
+    })
+    if recent:
+        return str(recent["_id"])
+
     target_date = (now + BDay(horizon)).strftime("%Y-%m-%d")
     eval_after = (now + BDay(horizon)).strftime("%Y-%m-%d")
     

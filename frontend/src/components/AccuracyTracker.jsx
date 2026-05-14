@@ -68,8 +68,8 @@ function StatusIcon({ result }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 // ─── Ticker Group Row ────────────────────────────────────────────────────────
-function TickerGroup({ ticker, predictions, onRowClick }) {
-    const [isOpen, setIsOpen] = useState(false)
+function TickerGroup({ ticker, predictions, onRowClick, defaultOpen }) {
+    const [isOpen, setIsOpen] = useState(defaultOpen || false)
 
     const evaluated = predictions.filter(p => p.actual_result)
     const correct = evaluated.filter(p => p.actual_result?.toUpperCase() === 'CORRECT').length
@@ -218,7 +218,7 @@ function PredRow({ row, onClick, isCompact }) {
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AccuracyTracker() {
+export default function AccuracyTracker({ tickerFilter }) {
     const { token } = useAuth()
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -240,7 +240,12 @@ export default function AccuracyTracker() {
         finally { setLoading(false) }
     }, [token])
 
-    useEffect(() => { fetchData() }, [fetchData])
+    useEffect(() => { 
+        fetchData()
+        const handleRefresh = () => fetchData()
+        window.addEventListener('prediction_saved', handleRefresh)
+        return () => window.removeEventListener('prediction_saved', handleRefresh)
+    }, [fetchData])
 
     const triggerEvaluate = async () => {
         setEvalLoading(true)
@@ -268,7 +273,10 @@ export default function AccuracyTracker() {
         return acc
     }, {})
 
-    const tickers = Object.keys(grouped).sort()
+    let tickers = Object.keys(grouped).sort()
+    if (tickerFilter) {
+        tickers = tickers.filter(t => t === tickerFilter)
+    }
 
     return (
         <div id="ticker-vault-accuracy" className="glass fade-up" style={{ borderRadius: 14, overflow: 'hidden' }}>
@@ -346,6 +354,7 @@ export default function AccuracyTracker() {
                                 ticker={t}
                                 predictions={grouped[t]}
                                 onRowClick={setSelectedRow}
+                                defaultOpen={tickers.length === 1 || !!tickerFilter}
                             />
                         ))
                     )}

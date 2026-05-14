@@ -125,7 +125,7 @@ function OHLCVBar({ ohlcv, currency }) {
     )
 }
 
-export default function BloombergChart({ ticker, activeHoldings = [] }) {
+export default function BloombergChart({ ticker }) {
     const containerRef = useRef(null)
     const chartRef = useRef(null)
     const mainSeriesRef = useRef(null)
@@ -322,32 +322,6 @@ export default function BloombergChart({ ticker, activeHoldings = [] }) {
         }
     }, [chartType, chartData])
 
-// paint purchase markers for the current ticker if user holds it
-    // only candlestick/bar series support markers; guard accordingly
-    useEffect(() => {
-        const series = mainSeriesRef.current
-        if (!series || typeof series.setMarkers !== 'function') return
-        // clear markers when there is no ticker
-        if (!ticker) {
-            series.setMarkers([])
-            return
-        }
-        const holding = activeHoldings.find(h => h.ticker === ticker)
-        if (holding && holding.buy_date) {
-            const markers = [
-                {
-                    time: holding.buy_date.split('T')[0],
-                    position: 'belowBar',
-                    color: '#00FF7F',
-                    shape: 'arrowUp',
-                    text: `Bought @ $${holding.buy_price}`
-                }
-            ]
-            series.setMarkers(markers)
-        } else {
-            series.setMarkers([])
-        }
-    }, [activeHoldings, ticker, chartType])
     // Loading overlay style (if desired)
     const overlayStyle = {
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,

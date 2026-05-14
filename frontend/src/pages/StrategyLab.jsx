@@ -14,25 +14,10 @@ const API_BASE = 'http://localhost:8000'
 export default function StrategyLab() {
     const [query, setQuery] = useState('')
 
-    // load holdings once user is present (use auth context inside if needed)
-    useEffect(() => {
-        // replicate same fetch as App
-        const token = window.localStorage.getItem('token') || ''
-        if (!token) {
-            setError("Session expired. Please log in again.")
-            setLoading(false)
-            return
-        }
-        fetch(`${API_BASE}/api/portfolio/summary`, { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : Promise.reject('fail'))
-            .then(d => setActiveHoldings(d.active_holdings || []))
-            .catch(e => console.warn('holdings fetch failed', e))
-    }, [])
     const [activeTicker, setActiveTicker] = useState(null)
     const [marketData, setMarketData] = useState(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
-    const [activeHoldings, setActiveHoldings] = useState([])
     const [activePeriod, setActivePeriod] = useState('1y')
     const [startAnalysis, setStartAnalysis] = useState(false)
     const [horizonDays, setHorizonDays] = useState(5)
@@ -194,7 +179,7 @@ export default function StrategyLab() {
                 className="h-[500px] w-full rounded-xl relative shadow-lg glass hex-grid"
             >
                 {activeTicker ? (
-                    <BloombergChart ticker={activeTicker} activeHoldings={activeHoldings} />
+                    <BloombergChart ticker={activeTicker} />
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                         <BarChart2 size={32} color="var(--text-muted)" />

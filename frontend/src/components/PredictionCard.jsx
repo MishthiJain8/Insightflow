@@ -125,6 +125,7 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
     useEffect(() => {
         if (!ticker) return
         let cancelled = false
+        const abortController = new AbortController()
 
         const run = async () => {
             setLoading(true)
@@ -148,7 +149,8 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
 
             try {
                 const res = await fetch(`${API_BASE}/api/predict/${ticker}?horizon=${horizon}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: abortController.signal
                 })
                 if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`)
                 const result = await res.json()
@@ -157,6 +159,7 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
                     window.dispatchEvent(new CustomEvent('update_conviction', {
                         detail: { score: result.combined_signal?.composite ?? 50 }
                     }))
+                    window.dispatchEvent(new CustomEvent('prediction_saved'))
                 }
             } catch (e) {
                 if (!cancelled) setError(e.message)
@@ -167,7 +170,10 @@ export default function PredictionCard({ ticker, horizon = 5 }) {
         }
 
         run()
-        return () => { cancelled = true }
+        return () => { 
+            cancelled = true 
+            abortController.abort()
+        }
     }, [ticker, horizon])
 
     // ── Loading ────────────────────────────────────────────────────────────────

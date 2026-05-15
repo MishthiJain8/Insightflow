@@ -1189,10 +1189,11 @@ def get_company_news(ticker: str):
         stock = yf.Ticker(ticker_upper)
         raw_news = stock.news or []
         for article in raw_news:
-            url = article.get("link", "#")
-            if url in seen_urls: continue
-            
             title = article.get("title", "")
+            url = article.get("link", "#")
+            if not title or not url or url == "#" or url in seen_urls: 
+                continue
+            
             publisher = article.get("publisher", "Unknown")
             
             pub_time = article.get("providerPublishTime")
@@ -1218,11 +1219,13 @@ def get_company_news(ticker: str):
         gn = GNews(language="en", period="3d", max_results=20)
         gnews_articles = gn.get_news(f"{ticker_upper} stock market") or []
         for article in gnews_articles:
+            title = article.get("title", "")
             url = article.get("url", "#")
-            if url in seen_urls: continue
+            if not title or not url or url == "#" or url in seen_urls: 
+                continue
             
             results.append({
-                "title": article.get("title", ""),
+                "title": title,
                 "publisher": article.get("publisher", {}).get("title", "Unknown"),
                 "published_date": article.get("published date", "Recently"),
                 "url": url,
@@ -1267,6 +1270,10 @@ def get_news(q: Optional[str] = None):
     results = []
     for article in articles:
         title = article.get("title", "")
+        url = article.get("url", "#")
+        if not title or not url or url == "#":
+            continue
+            
         try:
             sent_res = ai_brain.analyze_sentiment([title])
             score = sent_res.get("score", 0.0)
@@ -1281,7 +1288,7 @@ def get_news(q: Optional[str] = None):
             "published_date": article.get("published date", "Recently"),
             "sentiment": label,
             "score": score,
-            "url": article.get("url", "#"),
+            "url": url,
             "description": article.get("description", "")
         })
 

@@ -3234,3 +3234,145 @@ def run_backtest(ticker: str, years: int = 3, user_id: str = Depends(get_current
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── AutoTrader Bot ──────────────────────────────────────────────────────────
+import autotrader
+
+class AutoTraderStartRequest(BaseModel):
+    capital: float = 100_000.0
+
+class AutoTraderConfigRequest(BaseModel):
+    scan_interval: int = None       # seconds between scans
+    starting_capital: float = None  # reset starting capital
+
+@app.on_event("startup")
+async def startup_autotrader():
+    """Initialize autotrader collections and auto-start the bot."""
+    db.init_autotrader_collections()
+    # Inject the predict function to avoid circular imports
+    autotrader.bot.set_predict_fn(predict, BackgroundTasks)
+    # Auto-start the bot
+    await autotrader.bot.start()
+
+
+@app.get("/api/autotrader/status")
+async def get_autotrader_status():
+    """Get the bot's current status, capital, positions, and P&L."""
+    status = autotrader.bot.get_status()
+
+    # Enrich positions with live prices
+    for pos in status.get("positions", []):
+        try:
+            hist, _ = await asyncio.to_thread(get_history, pos["ticker"], period="5d")
+            if hist is not None and not hist.empty:
+                live = float(hist["Close"].iloc[-1])
+                pos["live_price"] = round(live, 2)
+                pos["unrealized_pnl"] = round((live - pos["entry_price"]) * pos["quantity"], 2)
+                pos["unrealized_pnl_pct"] = round(
+                    (live - pos["entry_price"]) / pos["entry_price"] * 100, 2
+                )
+        except Exception:
+            pos["live_price"] = pos["entry_price"]
+            pos["unrealized_pnl"] = 0
+            pos["unrealized_pnl_pct"] = 0
+
+    # Recalculate total value with live prices
+    positions_value = sum(
+        p.get("live_price", p["entry_price"]) * p["quantity"]
+        for p in status.get("positions", [])
+    )
+    status["total_value"] = round(status["current_capital"] + positions_value, 2)
+    unrealized_total = sum(p.get("unrealized_pnl", 0) for p in status.get("positions", []))
+    status["total_unrealized_pnl"] = round(unrealized_total, 2)
+    net_pnl = status["total_realized_pnl"] + unrealized_total
+    status["total_pnl"] = round(net_pnl, 2)
+    status["total_pnl_pct"] = round(
+        net_pnl / status["starting_capital"] * 100, 2
+    ) if status["starting_capital"] > 0 else 0
+
+    return status
+
+
+@app.post("/api/autotrader/start")
+async def start_autotrader(req: AutoTraderStartRequest):
+    """Start the bot with the given capital amount."""
+    autotrader.bot.set_predict_fn(predict, BackgroundTasks)
+    result = await autotrader.bot.start(capital=req.capital)
+    return result
+
+
+@app.post("/api/autotrader/stop")
+async def stop_autotrader():
+    """Stop the bot gracefully."""
+    result = await autotrader.bot.stop()
+    return result
+
+
+@app.get("/api/autotrader/history")
+def get_autotrader_history(limit: int = 200, action: str = None):
+    """Fetch trade history. Optional ?action=BUY or ?action=SELL filter."""
+    trades = db.get_autotrader_trades(limit=limit, action_filter=action)
+    return trades
+
+
+@app.get("/api/autotrader/equity-curve")
+def get_autotrader_equity_curve(limit: int = 500):
+    """Fetch equity curve snapshots for charting."""
+    snapshots = db.get_autotrader_snapshots(limit=limit)
+    return snapshots
+
+
+@app.get("/api/autotrader/stats")
+def get_autotrader_stats():
+    """Detailed performance statistics."""
+    return autotrader.bot.get_stats()
+
+
+@app.post("/api/autotrader/config")
+async def update_autotrader_config(req: AutoTraderConfigRequest):
+    """Update bot configuration (scan interval, capital)."""
+    if req.scan_interval is not None:
+        autotrader.bot.scan_interval = max(60, req.scan_interval)  # Min 1 minute
+    if req.starting_capital is not None:
+        # Only allow capital change when bot is stopped or has no positions
+        if not autotrader.bot.is_running or len(autotrader.bot.positions) == 0:
+            autotrader.bot.capital = req.starting_capital
+            autotrader.bot.starting_capital = req.starting_capital
+    autotrader.bot._persist_config()
+    return {"status": "updated", "config": {
+        "scan_interval": autotrader.bot.scan_interval,
+        "starting_capital": autotrader.bot.starting_capital,
+        "capital": autotrader.bot.capital,
+    }}
+
+
+@app.get("/api/autotrader/config")
+def get_autotrader_config():
+    """Get current bot configuration."""
+    return {
+        "scan_interval": autotrader.bot.scan_interval,
+        "starting_capital": autotrader.bot.starting_capital,
+        "capital": autotrader.bot.capital,
+        "max_positions": autotrader.MAX_POSITIONS,
+        "max_position_pct": autotrader.MAX_POSITION_PCT,
+        "take_profit_pct": autotrader.TAKE_PROFIT_PCT,
+        "stop_loss_pct": autotrader.STOP_LOSS_PCT,
+        "max_hold_days": autotrader.MAX_HOLD_DAYS,
+        "min_buy_probability": autotrader.MIN_BUY_PROBABILITY,
+        "min_buy_conviction": autotrader.MIN_BUY_CONVICTION,
+        "scan_universe_size": len(autotrader.bot.scan_universe),
+        "is_running": autotrader.bot.is_running,
+    }
+
+
+@app.post("/api/autotrader/reset")
+async def reset_autotrader(req: AutoTraderStartRequest):
+    """Stop the bot, clear all data, and restart fresh."""
+    await autotrader.bot.stop()
+    db.clear_autotrader_data()
+    autotrader.bot = autotrader.AutoTraderBot()
+    autotrader.bot.set_predict_fn(predict, BackgroundTasks)
+    await autotrader.bot.start(capital=req.capital)
+    return {"status": "reset", "capital": req.capital}
+

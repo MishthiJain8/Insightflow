@@ -3,7 +3,7 @@ import {
     LayoutDashboard, TrendingUp, FlaskConical,
     BrainCircuit, Briefcase, UserCircle, LogOut,
     Zap, X, AlertTriangle, Info, BarChart3, ShieldCheck,
-    ChevronRight, Eye
+    ChevronRight, Eye, Bot
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -14,6 +14,7 @@ const navItems = [
     { icon: FlaskConical, label: 'Strategy Lab', id: 'strategy' },
     { icon: BrainCircuit, label: 'News & Analysis', id: 'ai' },
     { icon: Briefcase, label: 'Portfolio', id: 'portfolio' },
+    { icon: Bot, label: 'AutoTrader', id: 'autotrader' },
 ]
 
 // ─── Logout Confirmation Modal ────────────────────────────────────────────────

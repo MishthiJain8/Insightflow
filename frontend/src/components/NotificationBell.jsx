@@ -198,9 +198,11 @@ export default function NotificationBell() {
                                 const isSell = notif.type?.toLowerCase().includes('sell')
                                 const isBuy = notif.type?.toLowerCase().includes('buy') || notif.type?.toLowerCase().includes('profit')
                                 const bgClass = isSell ? 'bg-red-500/10 border-red-500/20 text-red-400' : isBuy ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
-                                const dateObj = new Date(notif.created_at)
-                                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                const dateStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                const dateVal = notif.created_at || notif.timestamp
+                                const dateObj = dateVal ? new Date(dateVal) : new Date()
+                                const isValid = !isNaN(dateObj.getTime())
+                                const timeStr = isValid ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+                                const dateStr = isValid ? dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Just Now'
 
                                 return (
                                     <div key={notif.id || `notif-${idx}`} className={`p-4 border-b group hover:bg-white/5 transition-colors relative ${bgClass}`} style={{ borderColor: 'rgba(255,255,255,0.03)', opacity: notif.is_read ? 0.65 : 1 }}>

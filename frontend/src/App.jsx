@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import MarketData from './pages/MarketData'
 import StrategyLab from './pages/StrategyLab'
 import Portfolio from './pages/Portfolio'
+import AutoTrader from './pages/AutoTrader'
 import EditProfile from './pages/EditProfile'
 import UniversalSearch from './components/UniversalSearch'
 import NotificationBell from './components/NotificationBell'
@@ -399,6 +400,8 @@ export default function App() {
           <StrategyLab />
         ) : activePage === 'portfolio' ? (
           <Portfolio />
+        ) : activePage === 'autotrader' ? (
+          <AutoTrader />
         ) : (
           <>
             {error && <ErrorBanner message={error} />}

@@ -627,3 +627,107 @@ def add_to_watchlist(user_id: str, ticker: str) -> bool:
 
 def remove_from_watchlist(user_id: str, ticker: str) -> None:
     watchlist.delete_one({"user_id": user_id, "ticker": ticker.upper()})
+
+# ─── AutoTrader Bot Collections ──────────────────────────────────────────────
+
+autotrader_config_col = db_conn["autotrader_config"]
+autotrader_trades = db_conn["autotrader_trades"]
+autotrader_snapshots_col = db_conn["autotrader_snapshots"]
+
+def init_autotrader_collections() -> None:
+    """Create indexes for autotrader collections."""
+    existing = db_conn.list_collection_names()
+    for name in ["autotrader_config", "autotrader_trades", "autotrader_snapshots"]:
+        if name not in existing:
+            db_conn.create_collection(name)
+            print(f"  Created collection: {name}")
+    
+    autotrader_trades.create_index([("timestamp", DESCENDING)])
+    autotrader_trades.create_index("action")
+    autotrader_trades.create_index("ticker")
+    autotrader_snapshots_col.create_index([("timestamp", DESCENDING)])
+    print("AutoTrader indexes initialized.")
+
+
+def get_autotrader_config() -> dict:
+    """Load the bot's persisted configuration."""
+    doc = autotrader_config_col.find_one({"_type": "bot_state"})
+    if doc:
+        doc.pop("_id", None)
+        doc.pop("_type", None)
+        return doc
+    return {}
+
+
+def save_autotrader_config(config: dict) -> None:
+    """Persist the bot's current state."""
+    config["_type"] = "bot_state"
+    config = _clean_floats(config)
+    autotrader_config_col.update_one(
+        {"_type": "bot_state"},
+        {"$set": config},
+        upsert=True
+    )
+
+
+def log_autotrader_trade(trade_data: dict) -> str:
+    """Log a single trade action (BUY/SELL/BOT_STARTED/BOT_STOPPED)."""
+    trade_data = _clean_floats(trade_data)
+    res = autotrader_trades.insert_one(trade_data)
+    return str(res.inserted_id)
+
+
+def get_autotrader_trades(limit: int = 200, action_filter: str = None) -> list:
+    """Fetch recent trade history."""
+    query = {}
+    if action_filter:
+        query["action"] = action_filter
+    rows = autotrader_trades.find(query).sort("timestamp", DESCENDING).limit(limit)
+    return [_fmt(r) for r in rows]
+
+
+def save_autotrader_snapshot(snapshot: dict) -> None:
+    """Save a periodic equity snapshot for charting."""
+    snapshot = _clean_floats(snapshot)
+    autotrader_snapshots_col.insert_one(snapshot)
+
+
+def get_autotrader_snapshots(limit: int = 500) -> list:
+    """Fetch equity curve snapshots."""
+    rows = autotrader_snapshots_col.find().sort("timestamp", ASCENDING).limit(limit)
+    return [_fmt(r) for r in rows]
+
+
+def get_autotrader_stats() -> dict:
+    """Compute aggregate trading statistics from the trade log."""
+    pipeline = [
+        {"$match": {"action": "SELL"}},
+        {"$group": {
+            "_id": None,
+            "total_trades": {"$sum": 1},
+            "total_pnl": {"$sum": "$pnl"},
+            "avg_pnl": {"$avg": "$pnl"},
+            "max_pnl": {"$max": "$pnl"},
+            "min_pnl": {"$min": "$pnl"},
+            "avg_hold_days": {"$avg": "$days_held"},
+            "winning": {"$sum": {"$cond": [{"$gt": ["$pnl", 0]}, 1, 0]}},
+        }}
+    ]
+    result = list(autotrader_trades.aggregate(pipeline))
+    if not result:
+        return {"total_trades": 0, "total_pnl": 0, "win_rate": 0}
+    
+    stats = result[0]
+    stats.pop("_id", None)
+    total = stats.get("total_trades", 0)
+    wins = stats.get("winning", 0)
+    stats["win_rate"] = round(wins / total * 100, 1) if total > 0 else 0
+    return _clean_floats(stats)
+
+
+def clear_autotrader_data() -> None:
+    """Reset all autotrader data (for fresh starts)."""
+    autotrader_config_col.delete_many({})
+    autotrader_trades.delete_many({})
+    autotrader_snapshots_col.delete_many({})
+    print("AutoTrader data cleared.")

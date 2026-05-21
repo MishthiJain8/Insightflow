@@ -465,7 +465,10 @@ def check_for_market_peak(ticker: str, current_price: float, rsi: float, current
         stock = yf.Ticker(ticker)
         # 1-year history for resistance and 52-week high (self-healing)
         hist, ticker = get_history(ticker, period="1y")
-        if hist.empty: return {"peak": False}
+        if hist is None or getattr(hist, "empty", True):
+            return {"peak": False}
+        if "Close" not in hist.columns:
+            return {"peak": False}
         
         resistance = hist["Close"].max()
         peak_52w = resistance # Same for 1y period
@@ -808,6 +811,8 @@ def _fetch_changes(tickers: list[str]) -> list[dict]:
         return []
     try:
         data = yf.download(tickers, period="5d", group_by="ticker", threads=True, progress=False)
+        if data is None or getattr(data, "empty", True):
+            return []
     except Exception:
         return []
 

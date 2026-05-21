@@ -165,11 +165,18 @@ def resolve_real_ticker(company_query):
 
 def get_history(ticker: str, **kwargs):
     """Fetch history and retry with resolved ticker if initial df is empty."""
-    df = yf.Ticker(ticker).history(**kwargs)
-    if df.empty:
+    try:
+        df = yf.Ticker(ticker).history(**kwargs)
+    except Exception:
+        df = None
+
+    if df is None or getattr(df, "empty", True):
         resolved = resolve_real_ticker(ticker)
         if resolved != ticker:
-            df = yf.Ticker(resolved).history(**kwargs)
+            try:
+                df = yf.Ticker(resolved).history(**kwargs)
+            except Exception:
+                df = None
             return df, resolved
     return df, ticker
 

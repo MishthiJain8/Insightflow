@@ -46,7 +46,12 @@ def get_finbert():
     global _finbert
     if _finbert is None:
         logger.info("Loading FinBERT model — this may take a minute on first run...")
-        from transformers import pipeline
+        try:
+            from transformers import pipeline
+        except Exception as import_err:
+            logger.warning(f"Transformers import fallback: {import_err}")
+            import transformers
+            pipeline = transformers.pipeline
         _finbert = pipeline(
             "sentiment-analysis",
             model="ProsusAI/finbert",

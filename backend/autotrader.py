@@ -12,9 +12,11 @@ Key Design:
 """
 
 import asyncio
+import csv
 import time
 import json
 import os
+import urllib.request
 from datetime import datetime, timedelta
 from typing import Optional
 import yfinance as yf
@@ -36,8 +38,10 @@ MAX_HOLD_DAYS = 10                   # Auto-sell after 10 trading days
 MIN_SELL_PROBABILITY = 60.0          # Minimum DOWN confidence to trigger sell
 
 # ─── Discovery Universe ──────────────────────────────────────────────────────
-# Broad scan universe — the bot picks from these based on ML signals
-SCAN_UNIVERSE = [
+# Dynamic scan universe — by default the bot loads a broad market symbol list
+# from NASDAQ/NASDAQ-listed sources and falls back to a curated set if the
+# download is unavailable.
+FALLBACK_SCAN_UNIVERSE = [
     # US Large Cap Tech
     "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA", "AMD", "ORCL", "NFLX",
     "CRM", "ADBE", "INTC", "QCOM", "AVGO", "CSCO", "IBM", "PYPL", "SQ", "SHOP",
@@ -56,6 +60,64 @@ SCAN_UNIVERSE = [
     # ETFs
     "SPY", "QQQ", "IWM", "DIA", "ARKK",
 ]
+
+SYMBOL_SOURCE_URLS = [
+    "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+    "https://ftp.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+]
+
+_loaded_scan_universe = None
+
+
+def _download_symbol_file(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def _parse_symbol_file(content: str, symbol_field: str) -> list[str]:
+    symbols = []
+    lines = [line for line in content.splitlines() if line.strip()]
+    reader = csv.DictReader(lines, delimiter="|")
+    for row in reader:
+        symbol = row.get(symbol_field, "").strip()
+        if not symbol or symbol.lower().startswith("file creation") or symbol.lower() == symbol_field.lower():
+            continue
+        symbols.append(symbol)
+    return symbols
+
+
+def _load_scan_universe_from_sources() -> list[str]:
+    symbols = []
+    for url in SYMBOL_SOURCE_URLS:
+        try:
+            content = _download_symbol_file(url)
+            if "nasdaqlisted" in url:
+                parsed = _parse_symbol_file(content, "Symbol")
+            else:
+                parsed = _parse_symbol_file(content, "ACT Symbol")
+            symbols.extend(parsed)
+        except Exception:
+            continue
+    return list(dict.fromkeys(symbols))
+
+
+def _load_scan_universe() -> list[str]:
+    global _loaded_scan_universe
+    if _loaded_scan_universe is not None:
+        return _loaded_scan_universe.copy()
+
+    symbols = []
+    try:
+        symbols = _load_scan_universe_from_sources()
+    except Exception:
+        symbols = []
+
+    if not symbols:
+        symbols = FALLBACK_SCAN_UNIVERSE.copy()
+
+    _loaded_scan_universe = symbols
+    return symbols.copy()
 
 
 class AutoTraderBot:
@@ -79,7 +141,9 @@ class AutoTraderBot:
         self.total_trades = config.get("total_trades", 0)
         self.winning_trades = config.get("winning_trades", 0)
         self.total_realized_pnl = config.get("total_realized_pnl", 0.0)
-        self.scan_universe = config.get("scan_universe", SCAN_UNIVERSE.copy())
+        self.scan_universe = config.get("scan_universe")
+        if not self.scan_universe:
+            self.scan_universe = _load_scan_universe()
         self.cycle_count = 0
         self.last_scan_time = None
         self.last_scan_results = []

@@ -46,6 +46,7 @@ export default function AutoTrader() {
   const [capitalInput, setCapitalInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
+  const [targetZone, setTargetZone] = useState('All Active')
 
   const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
 
@@ -58,7 +59,11 @@ export default function AutoTrader() {
         fetch(`${API}/api/autotrader/equity-curve?limit=300`, { headers }),
         fetch(`${API}/api/autotrader/stats`, { headers }),
       ])
-      if (sRes.ok) setStatus(await sRes.json())
+      if (sRes.ok) {
+        const data = await sRes.json()
+        setStatus(data)
+        if (data.target_zone) setTargetZone(data.target_zone)
+      }
       if (hRes.ok) setHistory(await hRes.json())
       if (eRes.ok) setEquityCurve(await eRes.json())
       if (stRes.ok) setStats(await stRes.json())
@@ -75,6 +80,13 @@ export default function AutoTrader() {
     await fetch(`${API}/api/autotrader/start`, { method: 'POST', headers, body: JSON.stringify({ capital }) })
     await fetchAll()
     setActionLoading(false)
+  }
+
+  const handleUpdateZone = async (e) => {
+    const newZone = e.target.value
+    setTargetZone(newZone)
+    await fetch(`${API}/api/autotrader/config`, { method: 'POST', headers, body: JSON.stringify({ target_zone: newZone }) })
+    await fetchAll()
   }
 
   const handleStop = async () => {
@@ -140,6 +152,22 @@ export default function AutoTrader() {
               style={{ width: 130, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9', fontSize: '0.8rem', outline: 'none' }}
             />
           )}
+          <select 
+            value={targetZone} 
+            onChange={handleUpdateZone}
+            style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="All Active" style={{ background: '#080c14' }}>All Active</option>
+            <option value="US" style={{ background: '#080c14' }}>US Markets</option>
+            <option value="India" style={{ background: '#080c14' }}>India (NSE/BSE)</option>
+            <option value="UK" style={{ background: '#080c14' }}>UK (LSE)</option>
+            <option value="Europe" style={{ background: '#080c14' }}>Europe</option>
+            <option value="Japan" style={{ background: '#080c14' }}>Japan (TYO)</option>
+            <option value="Hong Kong" style={{ background: '#080c14' }}>Hong Kong</option>
+            <option value="Australia" style={{ background: '#080c14' }}>Australia</option>
+            <option value="Canada" style={{ background: '#080c14' }}>Canada</option>
+            <option value="Crypto" style={{ background: '#080c14' }}>Crypto</option>
+          </select>
           {isRunning ? (
             <button onClick={handleStop} disabled={actionLoading}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
@@ -150,6 +178,16 @@ export default function AutoTrader() {
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 0 20px rgba(6,182,212,0.3)' }}>
               <Play size={14} /> Start Bot
             </button>
+          )}
+          {isRunning && (
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5], scale: [0.95, 1.05, 0.95] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: 20, color: '#10b981', fontSize: '0.75rem', fontWeight: 700, marginLeft: 6 }}
+            >
+              <Activity size={14} />
+              Scanning (Cycle {status?.cycle_count || 0})
+            </motion.div>
           )}
           <button onClick={handleReset} disabled={actionLoading} title="Reset"
             style={{ padding: '9px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', cursor: 'pointer' }}>
@@ -313,7 +351,7 @@ export default function AutoTrader() {
               { l: 'Avg Profit', v: `$${stats.avg_profit?.toFixed(2)}`, c: '#10b981' },
               { l: 'Avg Loss', v: `$${stats.avg_loss?.toFixed(2)}`, c: '#ef4444' },
               { l: 'Profit Factor', v: stats.profit_factor === Infinity ? '∞' : stats.profit_factor?.toFixed(2), c: '#8b5cf6' },
-              { l: 'Avg Hold Days', v: `${stats.avg_hold_days}d`, c: '#f59e0b' },
+              { l: 'Avg Hold Mins', v: `${stats.avg_hold_mins}m`, c: '#f59e0b' },
               { l: 'Largest Win', v: `+$${stats.largest_win?.toFixed(2)}`, c: '#10b981' },
               { l: 'Largest Loss', v: `$${stats.largest_loss?.toFixed(2)}`, c: '#ef4444' },
               { l: 'Total P&L', v: `$${stats.total_realized_pnl?.toFixed(2)}`, c: stats.total_realized_pnl >= 0 ? '#10b981' : '#ef4444' },

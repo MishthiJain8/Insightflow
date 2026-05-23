@@ -15,10 +15,17 @@ export function AuthProvider({ children }) {
         const storedUser = localStorage.getItem('user_data')
         if (storedToken && storedUser) {
             try {
+                const parsedUser = JSON.parse(storedUser)
                 setToken(storedToken)
-                setUser(JSON.parse(storedUser))
-                fetchProfile(JSON.parse(storedUser).id, storedToken)
+                setUser(parsedUser)
+                // Only fetch profile if we have both token and user ID
+                if (storedToken && parsedUser?.id) {
+                    fetchProfile(parsedUser.id, storedToken)
+                } else {
+                    setAuthLoading(false)
+                }
             } catch (e) {
+                console.error('Auth restore error:', e)
                 signOut()
             }
         } else {
@@ -44,8 +51,11 @@ export function AuthProvider({ children }) {
     }
 
     // Proxy the profile fetch through the Python backend using the JWT
-    // For now we'll do a direct backend REST call (will build route next)
     const fetchProfile = async (uid, jwt) => {
+        if (!jwt || !uid) {
+            setAuthLoading(false)
+            return
+        }
         try {
             const res = await fetch(`${API_BASE}/api/profile`, {
                 headers: { 'Authorization': `Bearer ${jwt}` }
@@ -55,11 +65,14 @@ export function AuthProvider({ children }) {
                 setProfile(data)
             } else {
                 if (res.status === 401) {
+                    console.warn('Profile fetch returned 401, signing out')
                     signOut()
+                    return
                 }
                 setProfile(null)
             }
-        } catch {
+        } catch (err) {
+            console.error('Profile fetch error:', err)
             setProfile(null)
         } finally {
             setAuthLoading(false)

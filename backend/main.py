@@ -3250,6 +3250,7 @@ class AutoTraderStartRequest(BaseModel):
 class AutoTraderConfigRequest(BaseModel):
     scan_interval: int = None       # seconds between scans
     starting_capital: float = None  # reset starting capital
+    target_zone: str = None         # "All Active", "US", "India", etc.
 
 @app.on_event("startup")
 async def startup_autotrader():
@@ -3344,13 +3345,15 @@ async def update_autotrader_config(req: AutoTraderConfigRequest):
         if not autotrader.bot.is_running or len(autotrader.bot.positions) == 0:
             autotrader.bot.capital = req.starting_capital
             autotrader.bot.starting_capital = req.starting_capital
+    if req.target_zone is not None:
+        autotrader.bot.target_zone = req.target_zone
     autotrader.bot._persist_config()
     return {"status": "updated", "config": {
         "scan_interval": autotrader.bot.scan_interval,
         "starting_capital": autotrader.bot.starting_capital,
         "capital": autotrader.bot.capital,
+        "target_zone": autotrader.bot.target_zone,
     }}
-
 
 @app.get("/api/autotrader/config")
 def get_autotrader_config():
@@ -3359,11 +3362,12 @@ def get_autotrader_config():
         "scan_interval": autotrader.bot.scan_interval,
         "starting_capital": autotrader.bot.starting_capital,
         "capital": autotrader.bot.capital,
+        "target_zone": autotrader.bot.target_zone,
         "max_positions": autotrader.MAX_POSITIONS,
         "max_position_pct": autotrader.MAX_POSITION_PCT,
         "take_profit_pct": autotrader.TAKE_PROFIT_PCT,
         "stop_loss_pct": autotrader.STOP_LOSS_PCT,
-        "max_hold_days": autotrader.MAX_HOLD_DAYS,
+        "max_hold_minutes": autotrader.MAX_HOLD_MINUTES,
         "min_buy_probability": autotrader.MIN_BUY_PROBABILITY,
         "min_buy_conviction": autotrader.MIN_BUY_CONVICTION,
         "scan_universe_size": len(autotrader.bot.scan_universe),

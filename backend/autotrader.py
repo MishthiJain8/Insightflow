@@ -17,24 +17,29 @@ import time
 import json
 import os
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import yfinance as yf
 import numpy as np
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
 
 import database as db
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 DEFAULT_CAPITAL = 100_000.0
-SCAN_INTERVAL_SECONDS = 600          # 10 minutes
-MAX_POSITIONS = 10                   # Max concurrent open positions
-MAX_POSITION_PCT = 0.10              # Max 10% of capital per trade
+SCAN_INTERVAL_SECONDS = 30           # 30 seconds scan interval for instant action
+MAX_POSITIONS = 30                   # Max concurrent open positions (High frequency)
+MAX_POSITION_PCT = 0.05              # Max 5% of capital per trade
 MIN_BUY_PROBABILITY = 62.0           # Minimum prediction confidence to buy
 MIN_BUY_CONVICTION = 55.0            # Minimum conviction score
-TAKE_PROFIT_PCT = 0.08               # +8% take-profit
-STOP_LOSS_PCT = 0.04                 # -4% stop-loss
-MAX_HOLD_DAYS = 10                   # Auto-sell after 10 trading days
+TAKE_PROFIT_PCT = 0.015              # +1.5% take-profit for quick scalp
+STOP_LOSS_PCT = 0.005                # -0.5% tight stop-loss
+MAX_HOLD_MINUTES = 30                # Auto-sell after 30 minutes if target not hit
 MIN_SELL_PROBABILITY = 60.0          # Minimum DOWN confidence to trigger sell
 
 # ─── Discovery Universe ──────────────────────────────────────────────────────
@@ -111,14 +116,93 @@ def _load_scan_universe() -> list[str]:
     try:
         symbols = _load_scan_universe_from_sources()
     except Exception:
-        symbols = []
+        pass
 
-    if not symbols:
-        symbols = FALLBACK_SCAN_UNIVERSE.copy()
+    # Always include the fallback universe to ensure we have Crypto and Global markets
+    fallback = FALLBACK_SCAN_UNIVERSE.copy()
+    symbols.extend(fallback)
+    symbols = list(dict.fromkeys(symbols)) # deduplicate
 
     _loaded_scan_universe = symbols
     return symbols.copy()
 
+def get_ticker_market(ticker: str) -> str:
+    ticker = ticker.upper()
+    if ticker.endswith("-USD"):
+        return "Crypto"
+    elif ticker.endswith(".NS") or ticker.endswith(".BO"):
+        return "India"
+    elif ticker.endswith(".L"):
+        return "UK"
+    elif ticker.endswith(".PA") or ticker.endswith(".DE") or ticker.endswith(".MI"):
+        return "Europe"
+    elif ticker.endswith(".T"):
+        return "Japan"
+    elif ticker.endswith(".HK"):
+        return "Hong Kong"
+    elif ticker.endswith(".AX"):
+        return "Australia"
+    elif ticker.endswith(".TO"):
+        return "Canada"
+    else:
+        return "US"
+
+def is_market_open(market: str) -> bool:
+    if market == "Crypto":
+        return True
+        
+    now_utc = datetime.now(timezone.utc)
+    if now_utc.weekday() >= 5: # Saturday=5, Sunday=6
+        return False
+        
+    if not ZoneInfo:
+        return True # Fallback if zoneinfo is not available
+        
+    try:
+        if market == "US":
+            tz = ZoneInfo("America/New_York")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60 + 30) <= t <= (16 * 60) # 9:30 AM to 4:00 PM
+        elif market == "India":
+            tz = ZoneInfo("Asia/Kolkata")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60 + 15) <= t <= (15 * 60 + 30) # 9:15 AM to 3:30 PM
+        elif market == "UK":
+            tz = ZoneInfo("Europe/London")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (8 * 60) <= t <= (16 * 60 + 30) # 8:00 AM to 4:30 PM
+        elif market == "Europe":
+            tz = ZoneInfo("Europe/Paris")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60) <= t <= (17 * 60 + 30) # 9:00 AM to 5:30 PM
+        elif market == "Japan":
+            tz = ZoneInfo("Asia/Tokyo")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60) <= t <= (15 * 60) # 9:00 AM to 3:00 PM
+        elif market == "Hong Kong":
+            tz = ZoneInfo("Asia/Hong_Kong")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60 + 30) <= t <= (16 * 60) # 9:30 AM to 4:00 PM
+        elif market == "Australia":
+            tz = ZoneInfo("Australia/Sydney")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (10 * 60) <= t <= (16 * 60) # 10:00 AM to 4:00 PM
+        elif market == "Canada":
+            tz = ZoneInfo("America/Toronto")
+            now_local = now_utc.astimezone(tz)
+            t = now_local.hour * 60 + now_local.minute
+            return (9 * 60 + 30) <= t <= (16 * 60) # 9:30 AM to 4:00 PM
+    except Exception:
+        return True # Default to open if calculation fails
+        
+    return True
 
 class AutoTraderBot:
     """
@@ -144,6 +228,7 @@ class AutoTraderBot:
         self.scan_universe = config.get("scan_universe")
         if not self.scan_universe:
             self.scan_universe = _load_scan_universe()
+        self.target_zone = config.get("target_zone", "All Active")
         self.cycle_count = 0
         self.last_scan_time = None
         self.last_scan_results = []
@@ -283,14 +368,27 @@ class AutoTraderBot:
         universe = self.scan_universe.copy()
         random.shuffle(universe)
 
-        # Don't rescan tickers we already hold
-        universe = [t for t in universe if t not in self.positions]
+        # Don't rescan tickers we already hold, and filter by live markets
+        active_universe = []
+        for t in universe:
+            if t in self.positions:
+                continue
+            market = get_ticker_market(t)
+            # Filter by explicit target zone
+            if self.target_zone != "All Active" and market != self.target_zone:
+                continue
+            # Filter by market active status
+            if not is_market_open(market):
+                continue
+            active_universe.append(t)
 
-        # Scan in batches to avoid overloading
-        batch_size = 8
+        universe = active_universe
+
+        # Scan in larger batches to speed up discovery
+        batch_size = 20
         opportunities = []
 
-        for i in range(0, min(len(universe), 30), batch_size):  # Max 30 per cycle
+        for i in range(0, min(len(universe), 100), batch_size):  # Max 100 per cycle
             batch = universe[i:i + batch_size]
             tasks = [self._evaluate_ticker(t) for t in batch]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -301,8 +399,8 @@ class AutoTraderBot:
                 if result and result.get("should_buy"):
                     opportunities.append(result)
 
-            # Small delay between batches to be kind to APIs
-            await asyncio.sleep(2)
+            # Minimal delay between batches for fast execution
+            await asyncio.sleep(0.5)
 
         # ── Phase 3: Rank by expected profit and execute best buys ────────────
         # Sort by composite score (higher = better opportunity)
@@ -356,7 +454,7 @@ class AutoTraderBot:
             from fastapi import BackgroundTasks
             prediction = await self._predict_fn(
                 ticker, BackgroundTasks(),
-                request=None, horizon=5,
+                request=None, horizon=1,  # Short horizon for intraday momentum
                 user_id="autotrader_bot",
                 save_to_db=False, skip_rag=True
             )
@@ -424,27 +522,27 @@ class AutoTraderBot:
         """
         entry_price = position["entry_price"]
         entry_date = datetime.fromisoformat(position["entry_date"])
-        days_held = (datetime.utcnow() - entry_date).days
+        minutes_held = (datetime.utcnow() - entry_date).total_seconds() / 60.0
         pnl_pct = (live_price - entry_price) / entry_price
 
         # Take-profit
         if pnl_pct >= TAKE_PROFIT_PCT:
-            return f"TAKE_PROFIT: +{pnl_pct*100:.1f}% gain (target: +{TAKE_PROFIT_PCT*100}%)"
+            return f"TAKE_PROFIT: +{pnl_pct*100:.2f}% gain (target: +{TAKE_PROFIT_PCT*100}%)"
 
         # Stop-loss
         if pnl_pct <= -STOP_LOSS_PCT:
-            return f"STOP_LOSS: {pnl_pct*100:.1f}% loss (limit: -{STOP_LOSS_PCT*100}%)"
+            return f"STOP_LOSS: {pnl_pct*100:.2f}% loss (limit: -{STOP_LOSS_PCT*100}%)"
 
         # Max hold duration
-        if days_held >= MAX_HOLD_DAYS:
-            return f"MAX_HOLD: Held for {days_held} days (limit: {MAX_HOLD_DAYS})"
+        if minutes_held >= MAX_HOLD_MINUTES:
+            return f"MAX_HOLD: Held for {int(minutes_held)} mins (limit: {MAX_HOLD_MINUTES})"
 
         # Run fresh prediction to check if signal has flipped
         try:
             from fastapi import BackgroundTasks
             prediction = await self._predict_fn(
                 position["ticker"], BackgroundTasks(),
-                request=None, horizon=5,
+                request=None, horizon=1,
                 user_id="autotrader_bot",
                 save_to_db=False, skip_rag=True
             )
@@ -508,7 +606,7 @@ class AutoTraderBot:
         cost = pos["cost"]
         pnl = revenue - cost
         pnl_pct = (pnl / cost) * 100
-        days_held = (datetime.utcnow() - datetime.fromisoformat(pos["entry_date"])).days
+        minutes_held = (datetime.utcnow() - datetime.fromisoformat(pos["entry_date"])).total_seconds() / 60.0
 
         self.capital += revenue
         self.total_trades += 1
@@ -525,7 +623,7 @@ class AutoTraderBot:
             "entry_price": pos["entry_price"],
             "pnl": round(pnl, 2),
             "pnl_pct": round(pnl_pct, 2),
-            "days_held": days_held,
+            "minutes_held": round(minutes_held, 2),
             "capital_after": self.capital,
             "timestamp": datetime.utcnow().isoformat(),
             "reason": reason,
@@ -572,6 +670,7 @@ class AutoTraderBot:
             "winning_trades": self.winning_trades,
             "total_realized_pnl": self.total_realized_pnl,
             "scan_universe": self.scan_universe,
+            "target_zone": self.target_zone,
             "is_running": self.is_running,
             "last_updated": datetime.utcnow().isoformat(),
         }
@@ -619,6 +718,7 @@ class AutoTraderBot:
             "last_scan_time": self.last_scan_time,
             "scan_interval_seconds": self.scan_interval,
             "scan_universe_size": len(self.scan_universe),
+            "target_zone": self.target_zone,
         }
 
     def get_stats(self) -> dict:
@@ -635,7 +735,7 @@ class AutoTraderBot:
                 "profit_factor": 0,
                 "best_trade": None,
                 "worst_trade": None,
-                "avg_hold_days": 0,
+                "avg_hold_mins": 0,
                 "total_realized_pnl": 0,
                 "largest_win": 0,
                 "largest_loss": 0,
@@ -652,7 +752,7 @@ class AutoTraderBot:
 
         best = max(sell_trades, key=lambda t: t.get("pnl", 0))
         worst = min(sell_trades, key=lambda t: t.get("pnl", 0))
-        avg_hold = np.mean([t.get("days_held", 0) for t in sell_trades])
+        avg_hold = np.mean([t.get("minutes_held", t.get("days_held", 0) * 1440) for t in sell_trades])
 
         return {
             "total_trades": len(sell_trades),
@@ -672,7 +772,7 @@ class AutoTraderBot:
                 "pnl": worst.get("pnl"),
                 "pnl_pct": worst.get("pnl_pct"),
             },
-            "avg_hold_days": round(float(avg_hold), 1),
+            "avg_hold_mins": round(float(avg_hold), 1),
             "total_realized_pnl": round(self.total_realized_pnl, 2),
             "largest_win": round(max(t.get("pnl", 0) for t in sell_trades), 2),
             "largest_loss": round(min(t.get("pnl", 0) for t in sell_trades), 2),

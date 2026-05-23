@@ -17,8 +17,8 @@ export default function PortfolioHistoryChart({ data }) {
   }));
 
   return (
-    <div className="h-full w-full" style={{ padding: '10px' }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-full w-full" style={{ padding: '10px', minHeight: 300, position: 'relative' }}>
+      <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">

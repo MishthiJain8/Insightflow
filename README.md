@@ -86,3 +86,4 @@ Ensure you configure your `.env` files in both `backend/` and `frontend/` direct
 This project is licensed under the MIT License.
 
 *Crafted for the future of quantized trading.*
+# Insightflow

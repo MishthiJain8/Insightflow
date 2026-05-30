@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ─── CORE BACKEND & WEB ───────────────────────────────────────────────────────
 fastapi==0.133.1
 uvicorn==0.41.0
@@ -33,3 +34,24 @@ yt-dlp==2026.2.21
 # ─── NLP MODELS ──────────────────────────────────────────────────────────────
 # spacy model: en_core_web_sm
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+=======
+fastapi>=0.108.0
+uvicorn>=0.25.0
+pydantic>=2.7.0
+yfinance>=0.2.40
+pandas>=2.2.0
+numpy>=1.26.4
+requests>=2.32.0
+gnews>=0.3
+scikit-learn>=1.4.0
+python-dotenv>=1.0.0
+soundfile>=0.12.1
+librosa>=0.10.1
+transformers>=4.37.0
+torch>=2.2.0
+spacy>=3.7.2
+starlette>=0.37.0
+bcrypt
+pymongo
+JWT 
+>>>>>>> d7b84c2 ( first commit)

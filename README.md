@@ -87,3 +87,4 @@ This project is licensed under the MIT License.
 
 *Crafted for the future of quantized trading.*
 # Insightflow
+# Insightflow

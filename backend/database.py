@@ -21,7 +21,15 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
 DB_NAME = os.getenv("MONGODB_DB_NAME", "insightflow")
 
-client = MongoClient(MONGO_URI)
+if (
+    not os.getenv("MONGODB_URI")
+    and (os.getenv("VERCEL") or os.getenv("RENDER") or os.getenv("INSIGHTFLOW_USE_MEMORY_DB") == "1")
+):
+    from mongomock import MongoClient as MockMongoClient
+    client = MockMongoClient()
+    print("Using in-memory MongoDB fallback. Set MONGODB_URI for persistent production data.")
+else:
+    client = MongoClient(MONGO_URI)
 db_conn = client[DB_NAME]
 
 # Collections

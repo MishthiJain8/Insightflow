@@ -15,7 +15,7 @@ import NotificationBell from './components/NotificationBell'
 import { useAuth } from './context/AuthContext'
 import { Search, RefreshCw, Activity, Globe2, Cpu, BarChart2, LogOut } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 // suppress repetitive React warnings about blank keys (third‑party data)
 // these occur during heartbeat refreshes and are non‑fatal but noisy.

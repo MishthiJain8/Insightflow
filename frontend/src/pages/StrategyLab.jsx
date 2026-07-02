@@ -9,7 +9,7 @@ import IntelligenceFeed from '../components/IntelligenceFeed'
 import UniversalSearch from '../components/UniversalSearch'
 import BacktestCard from '../components/BacktestCard'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default function StrategyLab() {
     const [query, setQuery] = useState('')

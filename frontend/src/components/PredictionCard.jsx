@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ExplainModal from './ExplainModal'
 import { simplify_finance_terms } from '../utils/translator'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 // ─── SVG Probability Gauge ────────────────────────────────────────────────────
 function ProbabilityGauge({ probability, direction }) {

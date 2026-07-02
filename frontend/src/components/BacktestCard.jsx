@@ -3,6 +3,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { RefreshCw, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 export default function BacktestCard({ ticker, refreshKey }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export default function BacktestCard({ ticker, refreshKey }) {
     const headers = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    fetch(`http://127.0.0.1:8000/api/backtest/${ticker}?years=3`, { headers })
+    fetch(`${API_BASE}/api/backtest/${ticker}?years=3`, { headers })
       .then((res) => {
         if (!res.ok) throw new Error("API Error");
         return res.json();

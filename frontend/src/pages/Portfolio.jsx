@@ -8,7 +8,7 @@ import PortfolioHistoryChart from '../components/PortfolioHistoryChart'
 import TickerModal from '../components/TickerModal'
 import { useAuth } from '../context/AuthContext'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const CHART_COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#14b8a6']
 

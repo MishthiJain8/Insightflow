@@ -5,7 +5,7 @@ import StockChart from './StockChart'
 import CompanyOverview from './CompanyOverview'
 import { useAuth } from '../context/AuthContext'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default function TickerModal({ ticker, onClose }) {
     const { token } = useAuth()

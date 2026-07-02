@@ -1,17 +1,8 @@
 {
-<<<<<<< HEAD
     "n_estimators": 200,
     "max_depth": 6,
     "min_samples_leaf": 4,
     "retrain_trigger_count": 0,
     "last_accuracy": null,
     "last_evaluated_at": "2026-05-23T10:30:35.910839"
-=======
-    "n_estimators": 400,
-    "max_depth": 10,
-    "min_samples_leaf": 2,
-    "retrain_trigger_count": 2,
-    "last_accuracy": 0.35,
-    "last_evaluated_at": "2026-04-12T17:04:03.049872"
->>>>>>> d7b84c2 ( first commit)
 }

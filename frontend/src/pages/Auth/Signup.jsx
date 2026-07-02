@@ -3,7 +3,7 @@ import { Activity, Mail, Lock, Eye, EyeOff, ShieldCheck, RefreshCw, ArrowRight, 
 import { styles } from './_authStyles'
 import { useAuth } from '../../context/AuthContext'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default function Signup({ onNavigate }) {
     const { login } = useAuth()

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 
 // Supabase realtime will update bell instantly
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default function NotificationBell() {
     const { user, token } = useAuth()

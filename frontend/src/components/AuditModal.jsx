@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom'
 import { X, Eye, TrendingUp, TrendingDown, BarChart2, Brain, BookOpen, Sparkles, CheckCircle2, XCircle, Clock, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 // ─── Accuracy glow config ─────────────────────────────────────────────────────
 function getGlowStyle(result) {

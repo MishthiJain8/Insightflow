@@ -8,6 +8,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
     { icon: TrendingUp, label: 'Stock Chart', id: 'market' },
@@ -105,7 +107,7 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
         if (!user || !token) return
         setLoadingAlerts(true)
         try {
-            const res = await fetch('http://localhost:8000/api/portfolio/alerts', {
+            const res = await fetch(`${API_BASE}/api/portfolio/alerts`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) setAlerts(await res.json())
@@ -119,7 +121,7 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
     const fetchUnreadCount = async () => {
         if (!user || !token) return
         try {
-            const res = await fetch('http://localhost:8000/api/notifications/unread-count', {
+            const res = await fetch(`${API_BASE}/api/notifications/unread-count`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) {
@@ -165,7 +167,7 @@ export default function Sidebar({ activePage, onNavigate, onSelectTicker, watchl
     const markAllNotificationsAsRead = async () => {
         if (!user || !token) return
         try {
-            const res = await fetch('http://localhost:8000/api/notifications/mark-read', {
+            const res = await fetch(`${API_BASE}/api/notifications/mark-read`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` }
             })

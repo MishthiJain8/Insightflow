@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, X, Zap } from 'lucide-react'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 // Master Global Ticker List for Autocomplete
 const TICKER_LIST = [
     // US Tech
@@ -74,8 +76,7 @@ export default function UniversalSearch({ onSelect, onClear, placeholder = "Sear
 
         setLoading(true)
         try {
-            // Adjust port if your API_BASE is different, assuming same origin or configured CORS
-            const res = await fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(searchTerm)}`)
+            const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(searchTerm)}`)
             if (res.ok) {
                 const data = await res.json()
                 setResults(data)

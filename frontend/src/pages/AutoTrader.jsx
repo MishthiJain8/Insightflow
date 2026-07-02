@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, sub, color = '#06b6d4', glow = false }) {

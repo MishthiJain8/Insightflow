@@ -1,91 +1,89 @@
-# InsightFlow 🌊
+# InsightFlow
 
-**Hyper-Realistic AI Financial Intelligence & Portfolio Management**
+AI-powered financial intelligence for market research, portfolio tracking, and explainable trading signals.
 
-InsightFlow has evolved into a premium, real-time institutional-grade quantitative tracking and AI-driven analysis platform. It merges deep machine learning (XGBoost Ensembles), NLP (FinBERT + Llama3 RAG), and audio-emotion analysis (wav2vec2) with a custom glassmorphism application to provide traders and investors with an "unfair advantage" in market intelligence.
+**Live demo:** [https://insightflow-tau.vercel.app](https://insightflow-tau.vercel.app)
 
----
+InsightFlow is a full-stack financial analytics app built with a React/Vite frontend and a FastAPI backend. It combines market data, technical indicators, portfolio tools, AI-assisted summaries, and a clean dashboard experience for investors who want faster research workflows.
 
-## 🚀 Key Features
+> Current hosted version is a public demo. Some heavyweight AI/ML features are intentionally simplified on the free deployment so the app stays fast and available.
 
-### 🧠 The Institutional Quant Brain
-InsightFlow doesn't just calculate technical indicators. It builds a robust **Voting Classifier Ensemble** (XGBoost, RandomForest, GradientBoosting) trained dynamically on historical data. To power this, it scrapes and engineers:
-- **Macro Volatility**: `^VIX` indices integration.
-- **Corporate Fundamentals**: Real-time `P/E Ratio` and `Debt-to-Equity`.
-- **Options Flow**: Live approximation of the options chain `Put/Call Ratio`.
+## Features
 
-### 🤖 LLM RAG Conversational AI
-The InsightFlow engine integrates directly with **Ollama** running locally. When you ask a question it computes all the metrics, fetches live news, and uses **Llama3** (Retrieval-Augmented Generation) to output tailored, human-readable structural reasoning behind every quantitative decision.
+- **Market intelligence dashboard** with asset lookup, charts, and signal summaries.
+- **AI-style prediction workflow** using technical indicators and backend analysis.
+- **Portfolio studio** for tracking holdings, valuations, and market movement.
+- **Strategy/backtesting tools** for exploring trading ideas before risking capital.
+- **Authentication flow** with demo OTP support for the public hosted version.
+- **FastAPI backend** designed to support real database, email, and ML upgrades.
+- **Modern React frontend** with responsive UI, financial dashboards, and visualizations.
 
-### 🧪 Strategy Lab Backtester
-Prove your edge before risking capital. Run a hyper-fast 3-year walk-forward backtest perfectly simulating the AI's real-world behavior to map an interactive $10,000 Equity Curve, complete with Win Rates and a comparative analysis against holding the asset flat.
+## Tech Stack
 
-### 🏛️ Portfolio Studio
-A high-fidelity dashboard for managing your mock and active holdings.
-- **Live Sync**: Real-time asset valuation and P&L tracking.
-- **AI Guardian**: Proactive alerts when market conditions shift for your specific assets.
+**Frontend**
 
----
+- React
+- Vite
+- Tailwind CSS
+- Recharts
+- Three.js
 
-## 🛠️ Technology Stack
+**Backend**
 
-### Frontend
-- **Framework**: React.js + Vite
-- **Styling**: Tailwind CSS v4 (Glassmorphism & Neon Glows)
-- **Visualization**: Recharts + 3D Three.js backgrounds
+- FastAPI
+- Python
+- MongoDB-compatible storage
+- yfinance / market-data integrations
+- Optional ML modules for local or upgraded backend deployments
+
+## Live Deployment
+
+- Frontend: [https://insightflow-tau.vercel.app](https://insightflow-tau.vercel.app)
+- Backend health check: [https://insightflow-api-git-main-mishthi-jains-projects.vercel.app/api/health](https://insightflow-api-git-main-mishthi-jains-projects.vercel.app/api/health)
+
+The demo backend is deployed in a lightweight mode. For production, connect a persistent MongoDB database, configure a real email provider, and run the heavier ML stack on a paid CPU backend.
+
+## Local Setup
+
+### Prerequisites
+
+- Node.js 18+
+- Python 3.11+
+- MongoDB, or a MongoDB Atlas connection string
 
 ### Backend
-- **Framework**: FastAPI (Async Python High Performance)
-- **AI/ML Layer**: XGBoost Ensemble + Scikit-Learn
-- **Generative NLP**: Llama3 RAG via Ollama, FinBERT Sentiment, BART Intent
-- **Audio Intelligence**: wav2vec2 Earnings Call Emotion
-- **Databases**: MongoDB (Primary) + SQLite (Locally cached datasets)
 
----
-
-## 🛠️ Installation & Setup
-
-### 1. Prerequisites
-- Node.js (v18+)
-- Python (3.11+)
-- Ollama (installed locally with `llama3` pulled)
-- MongoDB Compass (running locally on port `27017`)
-
-### 2. Backend Setup
 ```bash
 cd backend
 python -m venv venv
-# Activate virtual environment
-source venv/bin/scripts/activate  # macOS/Linux
-.\venv\Scripts\activate           # Windows
-
-# Install all dependencies including XGBoost
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Start Server
 uvicorn main:app --reload
 ```
 
-### 3. Frontend Setup
+### Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
----
+Create `.env` files from the included examples and set the API URL, database URI, JWT secret, and email credentials as needed.
 
-## 🔐 Security & Configuration
-Ensure you configure your `.env` files in both `backend/` and `frontend/` directories.
-- **Backend**: MongoDB URI, JWT Secret keys, SMTP configurations.
-- **Frontend**: Localhost API base URLs.
+## Production Roadmap
 
----
+- Add MongoDB Atlas for persistent user data.
+- Configure real email delivery with Resend, Brevo, SendGrid, or Gmail app password.
+- Move the backend to a paid CPU host when traffic grows.
+- Restore heavier ML dependencies for advanced prediction and backtesting.
+- Add subscription billing with Stripe or Razorpay.
+- Add rate limits, monitoring, and clearer investment-risk disclaimers.
 
-## 📄 License
-This project is licensed under the MIT License.
+## Disclaimer
 
-*Crafted for the future of quantized trading.*
-# Insightflow
-# Insightflow
-# Insightflow
+InsightFlow is for educational and research purposes only. It is not financial advice, investment advice, or a guarantee of market performance.
+
+## License
+
+MIT

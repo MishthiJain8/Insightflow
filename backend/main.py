@@ -144,7 +144,11 @@ def send_otp(req: OtpRequest):
     except Exception as e:
         db.otp_delete(req.email)
         raise HTTPException(status_code=500, detail=f"SMTP error: {str(e)}")
-    return {"status": "success", "message": f"OTP sent to {req.email}"}
+    response = {"status": "success", "message": f"OTP sent to {req.email}"}
+    if not os.getenv("GMAIL_USER") or not os.getenv("GMAIL_APP_PASSWORD"):
+        response["dev_otp"] = otp
+        response["message"] = "Demo mode: use the verification code shown on screen."
+    return response
 
 
 @app.post("/api/auth/verify-otp")

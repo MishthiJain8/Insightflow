@@ -8,6 +8,7 @@ export default function VerifyOTP({ onNavigate, email = '', otpType = 'signup' }
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [success, setSuccess] = useState(false)
+    const [demoOtp, setDemoOtp] = useState(null)
     const inputs = useRef([])
 
     const handleChange = (i, val) => {
@@ -53,11 +54,16 @@ export default function VerifyOTP({ onNavigate, email = '', otpType = 'signup' }
 
     const handleResend = async () => {
         try {
-            await fetch(`${API_BASE}/api/auth/send-otp`, {
+            const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
             })
+            const data = await res.json()
+            if (data.dev_otp) {
+                setDemoOtp(data.dev_otp)
+                setOtp(data.dev_otp.split('').slice(0, 6))
+            }
             setError(null)
         } catch (e) { }
     }
@@ -84,6 +90,11 @@ export default function VerifyOTP({ onNavigate, email = '', otpType = 'signup' }
                         We sent a 6-digit OTP to<br />
                         <strong style={{ color: 'var(--accent-cyan)' }}>{email}</strong>
                     </p>
+                    {demoOtp && (
+                        <div style={{ ...styles.success, marginTop: 12 }}>
+                            Demo code: <strong style={{ letterSpacing: '0.18em' }}>{demoOtp}</strong>
+                        </div>
+                    )}
                 </div>
 
                 {/* OTP cells */}

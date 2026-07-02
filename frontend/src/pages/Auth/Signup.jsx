@@ -25,6 +25,7 @@ export default function Signup({ onNavigate }) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [resendCooldown, setResendCooldown] = useState(0)
+    const [demoOtp, setDemoOtp] = useState(null)
 
     // ── Step 1: Validate form + send OTP via backend ──────────────────────────
     const handleSendOtp = async (e) => {
@@ -40,6 +41,10 @@ export default function Signup({ onNavigate }) {
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.detail || 'Failed to send OTP')
+            if (data.dev_otp) {
+                setDemoOtp(data.dev_otp)
+                setOtpDigits(data.dev_otp.split('').slice(0, 6))
+            }
             setStep('otp')
             startResendCooldown()
         } catch (err) {
@@ -69,9 +74,16 @@ export default function Signup({ onNavigate }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
             })
-            if (!res.ok) throw new Error('Failed to resend OTP')
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.detail || 'Failed to resend OTP')
+            if (data.dev_otp) {
+                setDemoOtp(data.dev_otp)
+                setOtpDigits(data.dev_otp.split('').slice(0, 6))
+            } else {
+                setDemoOtp(null)
+                setOtpDigits(['', '', '', '', '', ''])
+            }
             startResendCooldown()
-            setOtpDigits(['', '', '', '', '', ''])
             otpRefs[0].current?.focus()
         } catch (err) {
             setError(err.message)
@@ -180,6 +192,11 @@ export default function Signup({ onNavigate }) {
                         <p style={styles.subtitle}>
                             We sent a 6-digit code to <span style={{ color: 'var(--accent-cyan)' }}>{email}</span>
                         </p>
+                        {demoOtp && (
+                            <div style={{ ...styles.success, marginBottom: 16 }}>
+                                Demo code: <strong style={{ letterSpacing: '0.18em' }}>{demoOtp}</strong>
+                            </div>
+                        )}
 
                         <form onSubmit={handleVerifyAndCreate} style={{ ...styles.form, marginTop: 20 }}>
                             {/* OTP digit boxes */}

@@ -18,8 +18,12 @@ import wave
 import struct
 import math
 import logging
-import soundfile as sf
 import numpy as np
+
+try:
+    import soundfile as sf
+except Exception:
+    sf = None
 
 logger = logging.getLogger("ai_brain")
 
@@ -373,3 +377,13 @@ def generate_learning_note(
         if vol_ok:
             return f"Surprise recovery for {t}: high institutional volume absorbed the selling pressure predicted — add volume spike detection as a reversal guard."
         return f"Missed downward call on {t}: unexpected positive catalyst (earnings/news) outweighed the bearish technical setup — improve catalyst screen for this stock."
+    if sf is None:
+        return {
+            "label": "neutral",
+            "confidence": 0.0,
+            "score": 0.0,
+            "anxiety": 0.0,
+            "confidence_score": 0.0,
+            "hesitation": 0.0,
+            "error": "Audio dependencies are unavailable in this hosted build."
+        }

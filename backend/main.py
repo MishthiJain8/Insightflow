@@ -10,8 +10,6 @@ from gnews import GNews
 import os, re, json, random, smtplib, time, math
 from email.message import EmailMessage
 from datetime import datetime, timedelta
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
 import ml_ensemble
 import rag_engine
 import ai_brain
@@ -2146,15 +2144,20 @@ async def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, use
     current_price = float(close.iloc[-1])
 
     # --- 3. Indicators (CPU Bound - keep in thread if truly slow, but pandas is okay) ---
-    import pandas_ta as ta
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd  = ema12 - ema26
     sig   = macd.ewm(span=9, adjust=False).mean()
     hist  = macd - sig
-    rsi14 = df.ta.rsi(length=14)
-    adx_df = df.ta.adx()
-    stoch_df = df.ta.stoch()
+    delta = close.diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rsi14 = 100 - (100 / (1 + (gain / loss.replace(0, np.nan))))
+    low14 = df["Low"].rolling(14).min()
+    high14 = df["High"].rolling(14).max()
+    stoch_k = ((close - low14) / (high14 - low14).replace(0, np.nan)) * 100
+    stoch_d = stoch_k.rolling(3).mean()
+    adx14 = pd.Series(0, index=df.index)
     ema20 = close.ewm(span=20, adjust=False).mean()
     ema50 = close.ewm(span=50, adjust=False).mean()
     dist20 = (close - ema20) / ema20
@@ -2168,9 +2171,9 @@ async def handle_query(req: QueryRequest, background_tasks: BackgroundTasks, use
     feat_df = pd.DataFrame({
         "close": close, "rsi14": rsi14, "macd": macd, "signal": sig, "macd_hist": hist,
         "dist20": dist20, "dist50": dist50, "vol_z": vol_z,
-        "adx": (adx_df['ADX_14'] if adx_df is not None else 0),
-        "stoch_k": (stoch_df['STOCHk_14_3_3'] if stoch_df is not None else 0),
-        "stoch_d": (stoch_df['STOCHd_14_3_3'] if stoch_df is not None else 0),
+        "adx": adx14,
+        "stoch_k": stoch_k,
+        "stoch_d": stoch_d,
     }).dropna()
     feat_df["target"] = (feat_df["close"].shift(-horizon_days) > feat_df["close"]).astype(int)
     feat_df = feat_df.dropna()
@@ -3384,4 +3387,3 @@ async def reset_autotrader(req: AutoTraderStartRequest):
     autotrader.bot.set_predict_fn(predict, BackgroundTasks)
     await autotrader.bot.start(capital=req.capital)
     return {"status": "reset", "capital": req.capital}
-

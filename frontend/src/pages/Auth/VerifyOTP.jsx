@@ -3,7 +3,7 @@ import { Activity, ShieldCheck } from 'lucide-react'
 import { styles } from './_authStyles'
 
 export default function VerifyOTP({ onNavigate, email = '', otpType = 'signup' }) {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
     const [otp, setOtp] = useState(['', '', '', '', '', ''])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)

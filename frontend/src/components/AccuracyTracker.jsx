@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import AuditModal from './AuditModal'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 // ─── Accuracy Bar ─────────────────────────────────────────────────────────────
 function AccuracyBar({ accuracy, count, correct, incorrect }) {

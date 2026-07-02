@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { Terminal, ChevronRight, Loader, X, Lightbulb } from 'lucide-react'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 const EXAMPLE_QUERIES = [
     'Should I invest in Apple right now?',

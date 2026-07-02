@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { RefreshCw, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 export default function BacktestCard({ ticker, refreshKey }) {
   const [data, setData] = useState(null);

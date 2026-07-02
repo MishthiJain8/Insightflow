@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, Activity, BarChart2, RefreshCw, Globe } from 'lucide-react'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 const SECTORS = ['All', 'IT / Tech', 'Banking', 'Auto', 'FMCG', 'Pharma', 'Energy', 'US Tech', 'Crypto']
 

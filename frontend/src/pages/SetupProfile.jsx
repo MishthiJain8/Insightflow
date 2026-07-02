@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { Activity, User, Phone, ArrowRight } from 'lucide-react'
 import { styles } from './Auth/_authStyles'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 export default function SetupProfile() {
     const { user, token, refreshProfile } = useAuth()

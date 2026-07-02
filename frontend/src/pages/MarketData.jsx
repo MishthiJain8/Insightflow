@@ -3,7 +3,7 @@ import { Search, Globe2, Activity, TrendingUp, TrendingDown, Clock, Newspaper, C
 import { motion, AnimatePresence } from 'framer-motion'
 import UniversalSearch from '../components/UniversalSearch'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://insightflow-api-git-main-mishthi-jains-projects.vercel.app' : 'http://localhost:8000')
 
 function SentimentBadge({ score, label }) {
     if (!label || label === 'Neutral') {
